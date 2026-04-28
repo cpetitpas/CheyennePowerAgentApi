@@ -1,0 +1,17 @@
+# Build output
+src/CheyennePowerApi/bin
+src/CheyennePowerApi/obj
+tests/CheyennePowerApi.Tests/bin
+tests/CheyennePowerApi.Tests/obj
+
+# User-specific Visual Studio files
+*.user
+*.suo
+.vs/
+
+# Environment/secrets - never commit these
+src/CheyennePowerApi/appsettings.Development.json
+
+# OS clutter
+.DS_Store
+Thumbs.db
