@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CheyennePowerAgentApi/CheyennePowerAgentApi.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CheyennePowerAgentApi.Tests/CheyennePowerAgentApi.Tests.csproj" />
+  </Folder>
+</Solution>

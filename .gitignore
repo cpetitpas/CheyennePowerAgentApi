@@ -1,8 +1,8 @@
 # Build output
-src/CheyennePowerApi/bin
-src/CheyennePowerApi/obj
-tests/CheyennePowerApi.Tests/bin
-tests/CheyennePowerApi.Tests/obj
+src/CheyennePowerAgentApi/bin
+src/CheyennePowerAgentApi/obj
+tests/CheyennePowerAgentApi.Tests/bin
+tests/CheyennePowerAgentApi.Tests/obj
 
 # User-specific Visual Studio files
 *.user
@@ -10,7 +10,7 @@ tests/CheyennePowerApi.Tests/obj
 .vs/
 
 # Environment/secrets - never commit these
-src/CheyennePowerApi/appsettings.Development.json
+src/CheyennePowerAgentApi/appsettings.Development.json
 
 # OS clutter
 .DS_Store

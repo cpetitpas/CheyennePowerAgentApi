@@ -1,0 +1,6 @@
+@CheyennePowerAgentApi_HostAddress = http://localhost:5255
+
+GET {{CheyennePowerAgentApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
