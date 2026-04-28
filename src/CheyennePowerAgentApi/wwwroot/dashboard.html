@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cheyenne Power — Operations Dashboard</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0d1117; color: #e6edf3; min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: #161b22; border-bottom: 1px solid #30363d;
+    padding: 0 24px; height: 52px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .logo { font-size: 1rem; font-weight: 700; letter-spacing: .3px; }
+  .logo span { color: #388bfd; }
+  .conn-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #3fb950; margin-left: auto; transition: background .3s;
+  }
+  .conn-dot.off { background: #f85149; }
+  .conn-label { font-size: 0.75rem; color: #8b949e; }
+
+  /* ── Tabs ── */
+  .tabs {
+    display: flex; background: #161b22;
+    border-bottom: 1px solid #30363d; padding: 0 24px;
+  }
+  .tab {
+    padding: 10px 18px; cursor: pointer; font-size: 0.83rem;
+    color: #8b949e; border-bottom: 2px solid transparent;
+    user-select: none; position: relative;
+  }
+  .tab.active { color: #e6edf3; border-bottom-color: #388bfd; }
+  .tab-badge {
+    display: none; position: absolute; top: 6px; right: 4px;
+    background: #f85149; color: #fff; font-size: 0.6rem;
+    font-weight: 700; border-radius: 8px; padding: 1px 5px;
+  }
+  .tab-badge.show { display: inline; }
+
+  /* ── Layout ── */
+  .page { display: none; padding: 16px 24px; }
+  .page.active { display: block; }
+
+  /* ── Summary strip ── */
+  .summary-strip {
+    display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap;
+  }
+  .summary-card {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+    padding: 8px 16px; min-width: 110px; text-align: center;
+  }
+  .summary-card .sc-label { font-size: 0.7rem; color: #8b949e; text-transform: uppercase; letter-spacing: .5px; }
+  .summary-card .sc-value { font-size: 1.5rem; font-weight: 700; line-height: 1.3; }
+  .sc-value.green  { color: #3fb950; }
+  .sc-value.yellow { color: #d29922; }
+  .sc-value.red    { color: #f85149; }
+  .sc-value.blue   { color: #388bfd; }
+
+  /* ── Bar chart ── */
+  .chart-wrap {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+    padding: 12px 16px; margin-bottom: 14px;
+  }
+  .chart-title { font-size: 0.75rem; color: #8b949e; margin-bottom: 8px; }
+  .bar-chart { display: flex; align-items: flex-end; gap: 3px; height: 60px; }
+  .bar {
+    flex: 1; background: #388bfd33; border-radius: 3px 3px 0 0;
+    transition: height .4s ease; min-height: 2px; position: relative;
+  }
+  .bar.has-high { background: #f8514933; }
+  .bar:hover::after {
+    content: attr(data-tip);
+    position: absolute; bottom: 105%; left: 50%; transform: translateX(-50%);
+    background: #21262d; border: 1px solid #30363d; border-radius: 4px;
+    padding: 2px 6px; font-size: 0.7rem; white-space: nowrap; pointer-events: none;
+    color: #e6edf3; z-index: 10;
+  }
+
+  /* ── Main grid ── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 14px;
+  }
+  @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
+
+  /* ── Event list ── */
+  .feed-panel { display: flex; flex-direction: column; gap: 0; }
+
+  .toolbar {
+    display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; align-items: center;
+  }
+  .filter-btn {
+    padding: 4px 12px; border-radius: 6px;
+    border: 1px solid #30363d; background: #21262d;
+    color: #8b949e; cursor: pointer; font-size: 0.78rem; transition: all .15s;
+  }
+  .filter-btn.active { background: #388bfd; color: #fff; border-color: #388bfd; }
+  .pause-btn {
+    margin-left: auto; padding: 4px 12px; border-radius: 6px;
+    border: 1px solid #30363d; background: #21262d;
+    color: #8b949e; cursor: pointer; font-size: 0.78rem;
+  }
+  .pause-btn.paused { background: #d2992233; color: #d29922; border-color: #d29922; }
+
+  #event-list {
+    display: flex; flex-direction: column; gap: 6px;
+    max-height: calc(100vh - 320px); overflow-y: auto;
+    scrollbar-width: thin; scrollbar-color: #30363d transparent;
+  }
+
+  .event-card {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+    padding: 10px 14px; border-left: 4px solid #30363d;
+    animation: fadeIn .25s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .event-card.HIGH   { border-left-color: #f85149; }
+  .event-card.MEDIUM { border-left-color: #d29922; }
+  .event-card.LOW    { border-left-color: #3fb950; }
+
+  .event-header { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; flex-wrap: wrap; }
+  .badge {
+    font-size: 0.68rem; font-weight: 700; padding: 2px 7px;
+    border-radius: 4px; text-transform: uppercase; white-space: nowrap;
+  }
+  .badge.HIGH   { background: #f851491a; color: #f85149; }
+  .badge.MEDIUM { background: #d299221a; color: #d29922; }
+  .badge.LOW    { background: #3fb9501a; color: #3fb950; }
+  .badge.ALARM  { background: #388bfd1a; color: #388bfd; }
+  .badge.FLOW   { background: #a371f71a; color: #a371f7; }
+
+  .event-node { font-weight: 600; font-size: 0.85rem; }
+  .event-time { font-size: 0.72rem; color: #8b949e; margin-left: auto; }
+  .event-meta { font-size: 0.78rem; color: #8b949e; }
+  .event-analysis { font-size: 0.81rem; color: #8b949e; margin-top: 3px; }
+  .event-action   { font-size: 0.81rem; color: #e6edf3;  margin-top: 2px; }
+
+  /* ── Actions sidebar ── */
+  .actions-panel {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 0;
+    max-height: calc(100vh - 320px);
+  }
+  .actions-title { font-size: 0.75rem; color: #8b949e; margin-bottom: 10px; text-transform: uppercase; letter-spacing: .5px; }
+  #action-list {
+    display: flex; flex-direction: column; gap: 8px;
+    overflow-y: auto; scrollbar-width: thin; scrollbar-color: #30363d transparent;
+  }
+  .action-item { border-left: 3px solid #30363d; padding-left: 8px; }
+  .action-item.HIGH   { border-left-color: #f85149; }
+  .action-item.MEDIUM { border-left-color: #d29922; }
+  .action-item.LOW    { border-left-color: #3fb950; }
+  .action-node { font-size: 0.78rem; font-weight: 600; }
+  .action-text { font-size: 0.75rem; color: #8b949e; margin-top: 2px; }
+  .action-time { font-size: 0.68rem; color: #484f58; margin-top: 1px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Cheyenne <span>Power</span> — Operations</div>
+  <div class="conn-label" id="conn-label">Connecting…</div>
+  <div class="conn-dot off" id="conn-dot"></div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('feed',this)">Live Feed</div>
+</div>
+
+<!-- ── Live Feed page ── -->
+<div class="page active" id="page-feed">
+
+  <!-- Summary strip -->
+  <div class="summary-strip" id="summary-strip">
+    <div class="summary-card">
+      <div class="sc-label">Total Events</div>
+      <div class="sc-value blue"  id="sc-total">0</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">High</div>
+      <div class="sc-value red"   id="sc-high">0</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Medium</div>
+      <div class="sc-value yellow" id="sc-med">0</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Low</div>
+      <div class="sc-value green" id="sc-low">0</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Alarms</div>
+      <div class="sc-value blue"  id="sc-alarm">0</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Flow</div>
+      <div class="sc-value blue"  id="sc-flow">0</div>
+    </div>
+  </div>
+
+  <!-- Bar chart -->
+  <div class="chart-wrap">
+    <div class="chart-title">Activity — last 60 seconds (per-second buckets)</div>
+    <div class="bar-chart" id="bar-chart"></div>
+  </div>
+
+  <!-- Main grid -->
+  <div class="main-grid">
+    <div class="feed-panel">
+      <div class="toolbar">
+        <button class="filter-btn active" onclick="setFilter('ALL',this)">ALL</button>
+        <button class="filter-btn" onclick="setFilter('ALARM',this)">ALARM</button>
+        <button class="filter-btn" onclick="setFilter('FLOW',this)">FLOW</button>
+        <button class="filter-btn" onclick="setFilter('HIGH',this)">HIGH</button>
+        <button class="pause-btn" id="pause-btn" onclick="togglePause()">⏸ Pause</button>
+      </div>
+      <div id="event-list"></div>
+    </div>
+
+    <div class="actions-panel">
+      <div class="actions-title">Recent Actions</div>
+      <div id="action-list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let allEvents  = [];
+let filter     = 'ALL';
+let paused     = false;
+let pauseBuffer = [];
+
+// 60 one-second buckets for the bar chart
+const BUCKETS  = 60;
+let buckets    = Array(BUCKETS).fill(null).map(() => ({ total: 0, high: 0 }));
+let lastBucket = Math.floor(Date.now() / 1000);
+
+// Counters
+let counts = { total: 0, high: 0, med: 0, low: 0, alarm: 0, flow: 0 };
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('page-' + name).classList.add('active');
+}
+
+// ── Filter ─────────────────────────────────────────────────────────────────
+function setFilter(f, el) {
+  filter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  rerenderList();
+}
+
+function matches(ev) {
+  if (filter === 'ALL')   return true;
+  if (filter === 'HIGH')  return ev.severity === 'HIGH';
+  return ev.event_type === filter;
+}
+
+// ── Pause / Resume ─────────────────────────────────────────────────────────
+function togglePause() {
+  paused = !paused;
+  const btn = document.getElementById('pause-btn');
+  btn.textContent = paused ? '▶ Resume' : '⏸ Pause';
+  btn.classList.toggle('paused', paused);
+  if (!paused) {
+    pauseBuffer.forEach(ingestEvent);
+    pauseBuffer = [];
+  }
+}
+
+// ── Ingest ─────────────────────────────────────────────────────────────────
+function ingestEvent(ev) {
+  allEvents.unshift(ev);
+
+  // counters
+  counts.total++;
+  if      (ev.severity === 'HIGH')   counts.high++;
+  else if (ev.severity === 'MEDIUM') counts.med++;
+  else                               counts.low++;
+  if (ev.event_type === 'ALARM') counts.alarm++;
+  else                           counts.flow++;
+  updateSummary();
+
+  // bar chart bucket
+  advanceBuckets();
+  const now = Math.floor(Date.now() / 1000);
+  const idx = now % BUCKETS;
+  buckets[idx].total++;
+  if (ev.severity === 'HIGH') buckets[idx].high++;
+  renderChart();
+
+  // event card
+  if (matches(ev)) prependCard(ev);
+
+  // action sidebar
+  prependAction(ev);
+}
+
+// ── Summary strip ──────────────────────────────────────────────────────────
+function updateSummary() {
+  document.getElementById('sc-total').textContent = counts.total;
+  document.getElementById('sc-high').textContent  = counts.high;
+  document.getElementById('sc-med').textContent   = counts.med;
+  document.getElementById('sc-low').textContent   = counts.low;
+  document.getElementById('sc-alarm').textContent = counts.alarm;
+  document.getElementById('sc-flow').textContent  = counts.flow;
+}
+
+// ── Bar chart ──────────────────────────────────────────────────────────────
+function advanceBuckets() {
+  const now = Math.floor(Date.now() / 1000);
+  while (lastBucket < now) {
+    lastBucket++;
+    buckets[lastBucket % BUCKETS] = { total: 0, high: 0 };
+  }
+}
+
+function renderChart() {
+  const chart = document.getElementById('bar-chart');
+  const max   = Math.max(1, ...buckets.map(b => b.total));
+  // order: oldest → newest
+  const now   = Math.floor(Date.now() / 1000);
+  chart.innerHTML = '';
+  for (let i = BUCKETS - 1; i >= 0; i--) {
+    const sec = now - i;
+    const b   = buckets[sec % BUCKETS];
+    const pct = Math.round((b.total / max) * 100);
+    const bar = document.createElement('div');
+    bar.className = 'bar' + (b.high > 0 ? ' has-high' : '');
+    bar.style.height = pct + '%';
+    bar.setAttribute('data-tip', `${b.total} event${b.total !== 1 ? 's' : ''}`);
+    chart.appendChild(bar);
+  }
+}
+
+// Tick chart every second to advance zero buckets
+setInterval(() => { advanceBuckets(); renderChart(); }, 1000);
+
+// ── Event cards ────────────────────────────────────────────────────────────
+function prependCard(ev) {
+  const list = document.getElementById('event-list');
+  const card = makeCard(ev);
+  if (list.firstChild) list.insertBefore(card, list.firstChild);
+  else list.appendChild(card);
+  // cap at 200 visible cards
+  while (list.children.length > 200) list.removeChild(list.lastChild);
+}
+
+function makeCard(ev) {
+  const time     = new Date(ev.timestamp).toLocaleTimeString();
+  const variance = ev.variance != null
+    ? `<span class="event-meta">&nbsp;|&nbsp;Var: ${Number(ev.variance).toFixed(1)}%</span>`
+    : '';
+
+  const card = document.createElement('div');
+  card.className = `event-card ${ev.severity}`;
+  card.innerHTML = `
+    <div class="event-header">
+      <span class="badge ${ev.event_type}">${ev.event_type}</span>
+      <span class="event-node">${ev.node_id}</span>
+      <span class="badge ${ev.severity}">${ev.severity}</span>
+      ${variance}
+      <span class="event-time">${time}</span>
+    </div>
+    <div class="event-analysis">${ev.analysis}</div>
+    <div class="event-action">→ ${ev.action}</div>`;
+  return card;
+}
+
+function rerenderList() {
+  const list = document.getElementById('event-list');
+  list.innerHTML = '';
+  allEvents.filter(matches).slice(0, 200).forEach(ev => {
+    list.appendChild(makeCard(ev));
+  });
+}
+
+// ── Actions sidebar ────────────────────────────────────────────────────────
+function prependAction(ev) {
+  const list = document.getElementById('action-list');
+  const time = new Date(ev.timestamp).toLocaleTimeString();
+  const item = document.createElement('div');
+  item.className = `action-item ${ev.severity}`;
+  item.innerHTML = `
+    <div class="action-node">${ev.node_id} <span class="badge ${ev.event_type}" style="font-size:.62rem">${ev.event_type}</span></div>
+    <div class="action-text">${ev.action}</div>
+    <div class="action-time">${time}</div>`;
+  if (list.firstChild) list.insertBefore(item, list.firstChild);
+  else list.appendChild(item);
+  while (list.children.length > 50) list.removeChild(list.lastChild);
+}
+
+// ── SSE ────────────────────────────────────────────────────────────────────
+let es = null;
+
+function connect() {
+  es = new EventSource('/api/stream/events');
+
+  es.addEventListener('telemetry', e => {
+    const ev = JSON.parse(e.data);
+    if (paused) { pauseBuffer.push(ev); return; }
+    ingestEvent(ev);
+  });
+
+  es.onopen = () => {
+    document.getElementById('conn-dot').className   = 'conn-dot';
+    document.getElementById('conn-label').textContent = 'Connected';
+  };
+
+  es.onerror = () => {
+    document.getElementById('conn-dot').className   = 'conn-dot off';
+    document.getElementById('conn-label').textContent = 'Reconnecting…';
+    es.close();
+    setTimeout(connect, 3000);
+  };
+}
+
+connect();
+</script>
+</body>
+</html>
