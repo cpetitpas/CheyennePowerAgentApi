@@ -44,4 +44,28 @@ public class EndpointTests : TestBase
         Assert.False(string.IsNullOrWhiteSpace(response.Analysis));
         Assert.Contains(response.Severity, new[] { "LOW", "MEDIUM", "HIGH" });
     }
+
+    [Fact]
+    public async Task GeneratorDispatch_Returns200_WithValidRequest()
+    {
+        var response = await PostAndDeserialize<GeneratorDispatchResponse>(
+            "/api/generation/dispatch",
+            ValidGeneratorDispatchRequest());
+
+        Assert.NotNull(response);
+        Assert.False(string.IsNullOrWhiteSpace(response.Analysis));
+        Assert.Contains(response.Severity, new[] { "LOW", "MEDIUM", "HIGH" });
+    }
+
+    [Fact]
+    public async Task TurbineAnalyze_Returns200_WithValidRequest()
+    {
+        var response = await PostAndDeserialize<TurbineAlarmResponse>(
+            "/api/turbine/analyze",
+            ValidTurbineAlarmRequest());
+
+        Assert.NotNull(response);
+        Assert.False(string.IsNullOrWhiteSpace(response.Analysis));
+        Assert.Contains(response.Severity, new[] { "LOW", "MEDIUM", "HIGH" });
+    }
 }

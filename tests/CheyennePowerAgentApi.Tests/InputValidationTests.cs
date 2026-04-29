@@ -27,4 +27,22 @@ public class InputValidationTests : TestBase
         var result = await PostAsync("/api/flow/analyze", req);
         Assert.Equal(HttpStatusCode.BadRequest, result.StatusCode);
     }
+
+    [Fact]
+    public async Task GeneratorDispatch_Returns400_WhenGeneratorIdMissing()
+    {
+        var req = ValidGeneratorDispatchRequest();
+        req.GeneratorId = "";
+        var result = await PostAsync("/api/generation/dispatch", req);
+        Assert.Equal(HttpStatusCode.BadRequest, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task TurbineAnalyze_Returns400_WhenAlarmTypeMissing()
+    {
+        var req = ValidTurbineAlarmRequest();
+        req.AlarmType = "";
+        var result = await PostAsync("/api/turbine/analyze", req);
+        Assert.Equal(HttpStatusCode.BadRequest, result.StatusCode);
+    }
 }

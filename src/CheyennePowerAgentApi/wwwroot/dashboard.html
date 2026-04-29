@@ -135,8 +135,11 @@
   .badge.HIGH   { background: #f851491a; color: #f85149; }
   .badge.MEDIUM { background: #d299221a; color: #d29922; }
   .badge.LOW    { background: #3fb9501a; color: #3fb950; }
-  .badge.ALARM  { background: #388bfd1a; color: #388bfd; }
-  .badge.FLOW   { background: #a371f71a; color: #a371f7; }
+  .badge.ALARM         { background: #388bfd1a; color: #388bfd; }
+  .badge.FLOW          { background: #a371f71a; color: #a371f7; }
+  .badge.FUEL_CELL_ALARM { background: #f0883e1a; color: #f0883e; }
+  .badge.TURBINE_ALARM { background: #ffa6571a; color: #ffa657; }
+  .badge.DISPATCH      { background: #39d3531a; color: #39d353; }
 
   .event-node { font-weight: 600; font-size: 0.85rem; }
   .event-time { font-size: 0.72rem; color: #8b949e; margin-left: auto; }
@@ -205,6 +208,14 @@
       <div class="sc-label">Flow</div>
       <div class="sc-value blue"  id="sc-flow">0</div>
     </div>
+    <div class="summary-card">
+      <div class="sc-label">Turbine</div>
+      <div class="sc-value blue"  id="sc-turbine">0</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Dispatch</div>
+      <div class="sc-value blue"  id="sc-dispatch">0</div>
+    </div>
   </div>
 
   <!-- Bar chart -->
@@ -219,7 +230,10 @@
       <div class="toolbar">
         <button class="filter-btn active" onclick="setFilter('ALL',this)">ALL</button>
         <button class="filter-btn" onclick="setFilter('ALARM',this)">ALARM</button>
+        <button class="filter-btn" onclick="setFilter('FUEL_CELL_ALARM',this)">FUEL CELL</button>
         <button class="filter-btn" onclick="setFilter('FLOW',this)">FLOW</button>
+        <button class="filter-btn" onclick="setFilter('TURBINE_ALARM',this)">TURBINE</button>
+        <button class="filter-btn" onclick="setFilter('DISPATCH',this)">DISPATCH</button>
         <button class="filter-btn" onclick="setFilter('HIGH',this)">HIGH</button>
         <button class="pause-btn" id="pause-btn" onclick="togglePause()">⏸ Pause</button>
       </div>
@@ -246,7 +260,7 @@ let buckets    = Array(BUCKETS).fill(null).map(() => ({ total: 0, high: 0 }));
 let lastBucket = Math.floor(Date.now() / 1000);
 
 // Counters
-let counts = { total: 0, high: 0, med: 0, low: 0, alarm: 0, flow: 0 };
+let counts = { total: 0, high: 0, med: 0, low: 0, alarm: 0, flow: 0, turbine: 0, fuelcell: 0, dispatch: 0 };
 
 // ── Tab switching ──────────────────────────────────────────────────────────
 function switchTab(name, el) {
@@ -291,8 +305,11 @@ function ingestEvent(ev) {
   if      (ev.severity === 'HIGH')   counts.high++;
   else if (ev.severity === 'MEDIUM') counts.med++;
   else                               counts.low++;
-  if (ev.event_type === 'ALARM') counts.alarm++;
-  else if (ev.event_type === 'FLOW') counts.flow++;
+  if      (ev.event_type === 'ALARM')            counts.alarm++;
+  else if (ev.event_type === 'FUEL_CELL_ALARM')  counts.fuelcell++;
+  else if (ev.event_type === 'FLOW')             counts.flow++;
+  else if (ev.event_type === 'TURBINE_ALARM')    counts.turbine++;
+  else if (ev.event_type === 'DISPATCH')         counts.dispatch++;
   updateSummary();
 
   // bar chart bucket
@@ -312,12 +329,14 @@ function ingestEvent(ev) {
 
 // ── Summary strip ──────────────────────────────────────────────────────────
 function updateSummary() {
-  document.getElementById('sc-total').textContent = counts.total;
-  document.getElementById('sc-high').textContent  = counts.high;
-  document.getElementById('sc-med').textContent   = counts.med;
-  document.getElementById('sc-low').textContent   = counts.low;
-  document.getElementById('sc-alarm').textContent = counts.alarm;
-  document.getElementById('sc-flow').textContent  = counts.flow;
+  document.getElementById('sc-total').textContent    = counts.total;
+  document.getElementById('sc-high').textContent     = counts.high;
+  document.getElementById('sc-med').textContent      = counts.med;
+  document.getElementById('sc-low').textContent      = counts.low;
+  document.getElementById('sc-alarm').textContent    = counts.alarm + counts.fuelcell;
+  document.getElementById('sc-flow').textContent     = counts.flow;
+  document.getElementById('sc-turbine').textContent  = counts.turbine;
+  document.getElementById('sc-dispatch').textContent = counts.dispatch;
 }
 
 // ── Bar chart ──────────────────────────────────────────────────────────────
