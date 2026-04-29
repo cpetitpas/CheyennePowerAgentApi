@@ -260,7 +260,7 @@ let buckets    = Array(BUCKETS).fill(null).map(() => ({ total: 0, high: 0 }));
 let lastBucket = Math.floor(Date.now() / 1000);
 
 // Counters
-let counts = { total: 0, high: 0, med: 0, low: 0, alarm: 0, flow: 0, turbine: 0, fuelcell: 0, dispatch: 0 };
+let counts = { total: 0, high: 0, med: 0, low: 0, flow: 0, turbine: 0, fuelcell: 0, dispatch: 0 };
 
 // ── Tab switching ──────────────────────────────────────────────────────────
 function switchTab(name, el) {
@@ -306,8 +306,7 @@ function ingestEvent(ev) {
   if      (ev.severity === 'HIGH')   counts.high++;
   else if (ev.severity === 'MEDIUM') counts.med++;
   else                               counts.low++;
-  if      (ev.event_type === 'ALARM')            counts.alarm++;
-  else if (ev.event_type === 'FUEL_CELL_ALARM')  counts.fuelcell++;
+  if      (ev.event_type === 'FUEL_CELL_ALARM')  counts.fuelcell++;
   else if (ev.event_type === 'FLOW')             counts.flow++;
   else if (ev.event_type === 'TURBINE_ALARM')    counts.turbine++;
   else if (ev.event_type === 'DISPATCH')         counts.dispatch++;
@@ -334,7 +333,7 @@ function updateSummary() {
   document.getElementById('sc-high').textContent     = counts.high;
   document.getElementById('sc-med').textContent      = counts.med;
   document.getElementById('sc-low').textContent      = counts.low;
-  document.getElementById('sc-alarm').textContent    = counts.alarm + counts.fuelcell;
+  document.getElementById('sc-alarm').textContent    = counts.fuelcell;
   document.getElementById('sc-flow').textContent     = counts.flow;
   document.getElementById('sc-turbine').textContent  = counts.turbine;
   document.getElementById('sc-dispatch').textContent = counts.dispatch;

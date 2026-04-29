@@ -1,6 +1,5 @@
 using System.Text.Json;
 using CheyennePowerAgentApi.Models;
-using CheyennePowerAgentApi.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -54,17 +53,24 @@ public class TelemetrySimulator : BackgroundService
             try
             {
                 await using var scope = _services.CreateAsyncScope();
-                var claude = scope.ServiceProvider.GetRequiredService<IClaudeService>();
-                var tools  = scope.ServiceProvider.GetRequiredService<IGenerationTools>();
 
                 var eventClass = _rng.Next(4);
-                TelemetryEvent evt = eventClass switch
+                TelemetryEvent evt;
+                if (eventClass == 3)
                 {
-                    0 => await SimulateFlowAsync(claude, ct),
-                    1 => await SimulateFuelCellAlarmAsync(claude, ct),
-                    2 => await SimulateTurbineAlarmAsync(claude, ct),
-                    _ => await SimulateDispatchAsync(tools, ct)
-                };
+                    var tools = scope.ServiceProvider.GetRequiredService<IGenerationTools>();
+                    evt = await SimulateDispatchAsync(tools, ct);
+                }
+                else
+                {
+                    var claude = scope.ServiceProvider.GetRequiredService<IClaudeService>();
+                    evt = eventClass switch
+                    {
+                        0 => await SimulateFlowAsync(claude, ct),
+                        1 => await SimulateFuelCellAlarmAsync(claude, ct),
+                        _ => await SimulateTurbineAlarmAsync(claude, ct)
+                    };
+                }
 
                 await _channel.Writer.WriteAsync(evt, ct);
             }
