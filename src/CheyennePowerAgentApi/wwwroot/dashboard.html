@@ -281,6 +281,7 @@ function setFilter(f, el) {
 function matches(ev) {
   if (filter === 'ALL')   return true;
   if (filter === 'HIGH')  return ev.severity === 'HIGH';
+  if (filter === 'ALARM') return ev.event_type === 'FUEL_CELL_ALARM' || ev.event_type === 'TURBINE_ALARM';
   return ev.event_type === filter;
 }
 
