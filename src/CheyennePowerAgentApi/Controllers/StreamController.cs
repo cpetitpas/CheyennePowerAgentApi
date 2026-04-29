@@ -16,7 +16,7 @@ public class StreamController : ControllerBase
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
     };
 
     public StreamController(TelemetryChannel channel, ILogger<StreamController> logger)

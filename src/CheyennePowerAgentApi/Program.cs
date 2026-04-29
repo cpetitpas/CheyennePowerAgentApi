@@ -1,8 +1,11 @@
+using System.Text.Json;
 using CheyennePowerAgentApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(o =>
+        o.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower);
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IClaudeService, ClaudeService>();
 builder.Services.AddSingleton<TelemetryChannel>();

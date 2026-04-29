@@ -292,7 +292,7 @@ function ingestEvent(ev) {
   else if (ev.severity === 'MEDIUM') counts.med++;
   else                               counts.low++;
   if (ev.event_type === 'ALARM') counts.alarm++;
-  else                           counts.flow++;
+  else if (ev.event_type === 'FLOW') counts.flow++;
   updateSummary();
 
   // bar chart bucket
@@ -407,11 +407,24 @@ function prependAction(ev) {
 // ── SSE ────────────────────────────────────────────────────────────────────
 let es = null;
 
+function normalizeEvent(raw) {
+  return {
+    ...raw,
+    event_type: String(raw.event_type ?? raw.eventType ?? 'UNKNOWN').toUpperCase(),
+    node_id: String(raw.node_id ?? raw.nodeId ?? 'UNKNOWN'),
+    severity: String(raw.severity ?? 'LOW').toUpperCase(),
+    analysis: raw.analysis ?? '',
+    action: raw.action ?? '',
+    variance: raw.variance ?? null,
+    timestamp: raw.timestamp ?? new Date().toISOString()
+  };
+}
+
 function connect() {
   es = new EventSource('/api/stream/events');
 
   es.addEventListener('telemetry', e => {
-    const ev = JSON.parse(e.data);
+    const ev = normalizeEvent(JSON.parse(e.data));
     if (paused) { pauseBuffer.push(ev); return; }
     ingestEvent(ev);
   });

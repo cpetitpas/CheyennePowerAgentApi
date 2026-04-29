@@ -89,11 +89,11 @@ public class TelemetrySimulator : BackgroundService
             alarmType = TurbineAlarms[_rng.Next(TurbineAlarms.Length)];
             (sensorValue, unit) = alarmType switch
             {
-                "HIGH_EXHAUST_TEMP"  => (600.0 + _rng.NextDouble() * 100, "degC"),
-                "HIGH_VIBRATION"     => (8.0  + _rng.NextDouble() * 4,   "mm/s"),
-                "LOW_OIL_PRESSURE"   => (1.5  + _rng.NextDouble() * 1.5, "bar"),
-                "OVERSPEED_TRIP"     => (3100 + _rng.NextDouble() * 200,  "RPM"),
-                _                    => (_rng.NextDouble() * 100,          "units")
+                "HIGH_STACK_TEMP"      => (680.0 + _rng.NextDouble() * 60,  "degC"),
+                "LOW_FUEL_UTILIZATION" => (60.0  + _rng.NextDouble() * 15,  "%"),
+                "INVERTER_FAULT"       => (480.0 + _rng.NextDouble() * 20,  "V"),
+                "COOLANT_LEAK"         => (2.5   + _rng.NextDouble() * 1.5, "L/min"),
+                _                      => (_rng.NextDouble() * 100,           "units")
             };
         }
         else if (nodeClass == 1)
