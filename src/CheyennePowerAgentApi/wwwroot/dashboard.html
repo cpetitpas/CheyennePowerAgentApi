@@ -165,6 +165,30 @@
   .action-node { font-size: 0.78rem; font-weight: 600; }
   .action-text { font-size: 0.75rem; color: #8b949e; margin-top: 2px; }
   .action-time { font-size: 0.68rem; color: #484f58; margin-top: 1px; }
+
+  /* ── Tools page ── */
+  .tools-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 14px; margin-bottom: 20px;
+  }
+  .tool-card {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+    padding: 16px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .tool-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .tool-name { font-weight: 700; font-size: 0.95rem; }
+  .tool-status {
+    font-size: 0.7rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; text-transform: uppercase;
+  }
+  .tool-status.OK { background: #3fb9501a; color: #3fb950; }
+  .tool-status.DEGRADED { background: #f851491a; color: #f85149; }
+  .tool-info { display: flex; flex-direction: column; gap: 4px; font-size: 0.78rem; }
+  .tool-info-row { display: flex; justify-content: space-between; }
+  .tool-label { color: #8b949e; }
+  .tool-value { color: #e6edf3; font-weight: 500; }
+  .tool-reason { background: #f851491a; border: 1px solid #f85149; border-radius: 4px; padding: 6px; font-size: 0.75rem; color: #f85149; }
+  .tool-refresh { padding: 4px 12px; border-radius: 6px; border: 1px solid #30363d; background: #21262d; color: #8b949e; cursor: pointer; font-size: 0.75rem; align-self: flex-start; }
+  .tool-refresh:hover { background: #30363d; color: #e6edf3; }
 </style>
 </head>
 <body>
@@ -177,6 +201,7 @@
 
 <div class="tabs">
   <div class="tab active" onclick="switchTab('feed',this)">Live Feed</div>
+  <div class="tab" onclick="switchTab('tools',this)">Tools</div>
 </div>
 
 <!-- ── Live Feed page ── -->
@@ -245,6 +270,16 @@
       <div id="action-list"></div>
     </div>
   </div>
+</div>
+
+<!-- ── Tools page ── -->
+<div class="page" id="page-tools">
+  <div style="margin-bottom: 16px;">
+    <h2 style="font-size: 1.1rem; margin-bottom: 8px;">Tool Health Status</h2>
+    <p style="font-size: 0.8rem; color: #8b949e; margin-bottom: 12px;">Real-time status of generation data tools. Auto-refreshes every 10 seconds.</p>
+    <button class="tool-refresh" onclick="refreshTools()">↻ Refresh Now</button>
+  </div>
+  <div class="tools-grid" id="tools-grid"></div>
 </div>
 
 <script>
@@ -462,6 +497,96 @@ function connect() {
 }
 
 connect();
+
+// ── Tools page refresh ─────────────────────────────────────────────────────
+const TOOLS = [
+  { endpoint: '/api/tools/dispatch-state/GT-001', name: 'Dispatch State' },
+  { endpoint: '/api/tools/fuel-cell/GT-001', name: 'Fuel Cell' },
+  { endpoint: '/api/tools/gas-supply/GT-001', name: 'Gas Supply' },
+  { endpoint: '/api/tools/load-forecast/DC-001', name: 'Load Forecast' },
+  { endpoint: '/api/tools/emissions/GT-001', name: 'Emissions' }
+];
+
+async function refreshTools() {
+  const grid = document.getElementById('tools-grid');
+  grid.innerHTML = '';
+
+  for (const tool of TOOLS) {
+    try {
+      const resp = await fetch(tool.endpoint);
+      const result = await resp.json();
+      renderToolCard(tool.name, result);
+    } catch (err) {
+      renderToolError(tool.name, err.message);
+    }
+  }
+}
+
+function renderToolCard(name, result) {
+  const grid = document.getElementById('tools-grid');
+  const card = document.createElement('div');
+  card.className = 'tool-card';
+
+  const ts = new Date(result.timestamp).toLocaleTimeString();
+  const statusClass = result.status === 'OK' ? 'OK' : 'DEGRADED';
+  const confidence = (result.confidence * 100).toFixed(0);
+
+  let html = `
+    <div class="tool-header">
+      <div class="tool-name">${name}</div>
+      <div class="tool-status ${statusClass}">${result.status}</div>
+    </div>
+    <div class="tool-info">
+      <div class="tool-info-row">
+        <span class="tool-label">Source:</span>
+        <span class="tool-value">${result.source}</span>
+      </div>
+      <div class="tool-info-row">
+        <span class="tool-label">Confidence:</span>
+        <span class="tool-value">${confidence}%</span>
+      </div>
+      <div class="tool-info-row">
+        <span class="tool-label">Stale after:</span>
+        <span class="tool-value">${result.stale_after_seconds}s</span>
+      </div>
+      <div class="tool-info-row">
+        <span class="tool-label">Updated:</span>
+        <span class="tool-value">${ts}</span>
+      </div>
+  `;
+
+  if (result.status === 'DEGRADED' && result.fallback_reason) {
+    html += `<div class="tool-reason">⚠ ${result.fallback_reason}</div>`;
+  }
+
+  html += '</div>';
+  card.innerHTML = html;
+  grid.appendChild(card);
+}
+
+function renderToolError(name, error) {
+  const grid = document.getElementById('tools-grid');
+  const card = document.createElement('div');
+  card.className = 'tool-card';
+  card.innerHTML = `
+    <div class="tool-header">
+      <div class="tool-name">${name}</div>
+      <div class="tool-status DEGRADED">ERROR</div>
+    </div>
+    <div class="tool-reason">⚠ ${error}</div>
+  `;
+  grid.appendChild(card);
+}
+
+// Auto-refresh tools page every 10s when visible
+setInterval(() => {
+  if (document.getElementById('page-tools').classList.contains('active')) {
+    refreshTools();
+  }
+}, 10000);
+
+// Initial load on startup
+refreshTools();
 </script>
 </body>
 </html>
