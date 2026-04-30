@@ -49,6 +49,15 @@ public abstract class TestBase : IClassFixture<WebApplicationFactory<Program>>
         return result!;
     }
 
+    protected async Task<T> GetAndDeserialize<T>(string url)
+    {
+        var response = await Client.GetAsync(url);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<T>(JsonOpts);
+        Assert.NotNull(result);
+        return result!;
+    }
+
     // -------------------------
     // HELPERS
     // -------------------------
