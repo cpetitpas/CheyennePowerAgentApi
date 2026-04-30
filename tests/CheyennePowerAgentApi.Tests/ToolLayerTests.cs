@@ -13,11 +13,6 @@ public class ToolLayerTests : TestBase
 {
     private readonly HttpClient _degradedClient;
 
-    private static readonly JsonSerializerOptions JsonOpts = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
-    };
-
     public ToolLayerTests(WebApplicationFactory<Program> factory) : base(factory)
     {
         _degradedClient = factory.WithWebHostBuilder(builder =>

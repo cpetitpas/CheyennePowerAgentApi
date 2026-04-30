@@ -12,7 +12,7 @@ namespace CheyennePowerAgentApi.Tests;
 public abstract class TestBase : IClassFixture<WebApplicationFactory<Program>>
 {
     protected readonly HttpClient Client;
-    private static readonly JsonSerializerOptions JsonOpts = new()
+    protected static readonly JsonSerializerOptions JsonOpts = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
     };

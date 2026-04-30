@@ -498,6 +498,13 @@ function connect() {
 
 connect();
 
+// ── HTML escape helper (prevents XSS when rendering API-sourced strings) ───
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s ?? '');
+  return d.innerHTML;
+}
+
 // ── Tools page refresh ─────────────────────────────────────────────────────
 const TOOLS = [
   { endpoint: '/api/tools/dispatch-state/GT-001', name: 'Dispatch State' },
@@ -533,30 +540,30 @@ function renderToolCard(name, result) {
 
   let html = `
     <div class="tool-header">
-      <div class="tool-name">${name}</div>
-      <div class="tool-status ${statusClass}">${result.status}</div>
+      <div class="tool-name">${esc(name)}</div>
+      <div class="tool-status ${statusClass}">${esc(result.status)}</div>
     </div>
     <div class="tool-info">
       <div class="tool-info-row">
         <span class="tool-label">Source:</span>
-        <span class="tool-value">${result.source}</span>
+        <span class="tool-value">${esc(result.source)}</span>
       </div>
       <div class="tool-info-row">
         <span class="tool-label">Confidence:</span>
-        <span class="tool-value">${confidence}%</span>
+        <span class="tool-value">${esc(confidence)}%</span>
       </div>
       <div class="tool-info-row">
         <span class="tool-label">Stale after:</span>
-        <span class="tool-value">${result.stale_after_seconds}s</span>
+        <span class="tool-value">${esc(result.stale_after_seconds)}s</span>
       </div>
       <div class="tool-info-row">
         <span class="tool-label">Updated:</span>
-        <span class="tool-value">${ts}</span>
+        <span class="tool-value">${esc(ts)}</span>
       </div>
   `;
 
   if (result.status === 'DEGRADED' && result.fallback_reason) {
-    html += `<div class="tool-reason">⚠ ${result.fallback_reason}</div>`;
+    html += `<div class="tool-reason">⚠ ${esc(result.fallback_reason)}</div>`;
   }
 
   html += '</div>';
@@ -570,10 +577,10 @@ function renderToolError(name, error) {
   card.className = 'tool-card';
   card.innerHTML = `
     <div class="tool-header">
-      <div class="tool-name">${name}</div>
+      <div class="tool-name">${esc(name)}</div>
       <div class="tool-status DEGRADED">ERROR</div>
     </div>
-    <div class="tool-reason">⚠ ${error}</div>
+    <div class="tool-reason">⚠ ${esc(error)}</div>
   `;
   grid.appendChild(card);
 }
