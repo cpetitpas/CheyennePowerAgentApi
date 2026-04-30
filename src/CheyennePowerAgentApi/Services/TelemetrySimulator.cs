@@ -53,16 +53,24 @@ public class TelemetrySimulator : BackgroundService
             try
             {
                 await using var scope = _services.CreateAsyncScope();
-                var claude = scope.ServiceProvider.GetRequiredService<IClaudeService>();
 
-                // Pick event type
-                var isFlow = _rng.Next(2) == 0;
+                var eventClass = _rng.Next(4);
                 TelemetryEvent evt;
-
-                if (isFlow)
-                    evt = await SimulateFlowAsync(claude, ct);
+                if (eventClass == 3)
+                {
+                    var tools = scope.ServiceProvider.GetRequiredService<IGenerationTools>();
+                    evt = await SimulateDispatchAsync(tools, ct);
+                }
                 else
-                    evt = await SimulateAlarmAsync(claude, ct);
+                {
+                    var claude = scope.ServiceProvider.GetRequiredService<IClaudeService>();
+                    evt = eventClass switch
+                    {
+                        0 => await SimulateFlowAsync(claude, ct),
+                        1 => await SimulateFuelCellAlarmAsync(claude, ct),
+                        _ => await SimulateTurbineAlarmAsync(claude, ct)
+                    };
+                }
 
                 await _channel.Writer.WriteAsync(evt, ct);
             }
@@ -74,50 +82,21 @@ public class TelemetrySimulator : BackgroundService
         }
     }
 
-    private async Task<TelemetryEvent> SimulateAlarmAsync(IClaudeService claude, CancellationToken ct)
+    private async Task<TelemetryEvent> SimulateFuelCellAlarmAsync(IClaudeService claude, CancellationToken ct)
     {
-        // Pick a node and alarm type
-        string nodeId;
-        string alarmType;
-        double sensorValue;
-        string unit;
-
-        var nodeClass = _rng.Next(3);
-        if (nodeClass == 0)
+        var nodeId    = FuelCells[_rng.Next(FuelCells.Length)];
+        var alarmType = FuelCellAlarms[_rng.Next(FuelCellAlarms.Length)];
+        var (sensorValue, unit) = alarmType switch
         {
-            nodeId    = GasTurbines[_rng.Next(GasTurbines.Length)];
-            alarmType = TurbineAlarms[_rng.Next(TurbineAlarms.Length)];
-            (sensorValue, unit) = alarmType switch
-            {
-                "HIGH_STACK_TEMP"      => (680.0 + _rng.NextDouble() * 60,  "degC"),
-                "LOW_FUEL_UTILIZATION" => (60.0  + _rng.NextDouble() * 15,  "%"),
-                "INVERTER_FAULT"       => (480.0 + _rng.NextDouble() * 20,  "V"),
-                "COOLANT_LEAK"         => (2.5   + _rng.NextDouble() * 1.5, "L/min"),
-                _                      => (_rng.NextDouble() * 100,           "units")
-            };
-        }
-        else if (nodeClass == 1)
-        {
-            nodeId    = FuelCells[_rng.Next(FuelCells.Length)];
-            alarmType = FuelCellAlarms[_rng.Next(FuelCellAlarms.Length)];
-            (sensorValue, unit) = alarmType switch
-            {
-                "HIGH_STACK_TEMP"        => (680.0 + _rng.NextDouble() * 60, "degC"),
-                "LOW_FUEL_UTILIZATION"   => (60.0  + _rng.NextDouble() * 15, "%"),
-                _                        => (_rng.NextDouble() * 100,          "units")
-            };
-        }
-        else
-        {
-            nodeId    = FuelNodes[_rng.Next(FuelNodes.Length)];
-            alarmType = FlowAlarms[_rng.Next(FlowAlarms.Length)];
-            (sensorValue, unit) = ("PRESSURE_DROP" == alarmType)
-                ? (40.0 + _rng.NextDouble() * 20, "bar")
-                : (120.0 + _rng.NextDouble() * 60, "MMSCFD");
-        }
+            "HIGH_STACK_TEMP"      => (680.0 + _rng.NextDouble() * 60,  "degC"),
+            "LOW_FUEL_UTILIZATION" => (60.0  + _rng.NextDouble() * 15,  "%"),
+            "INVERTER_FAULT"       => (480.0 + _rng.NextDouble() * 20,  "V"),
+            "COOLANT_LEAK"         => (2.5   + _rng.NextDouble() * 1.5, "L/min"),
+            _                      => (_rng.NextDouble() * 100,           "units")
+        };
 
         var prompt = $$"""
-            You are an AI agent monitoring a natural gas-fired power generation facility.
+            You are an AI agent monitoring Bloom Energy fuel cells at a power generation facility.
             Analyze the following alarm and respond with a JSON object using snake_case keys:
             {
               "analysis": "<one sentence assessment>",
@@ -135,11 +114,92 @@ public class TelemetrySimulator : BackgroundService
 
         return new TelemetryEvent
         {
-            EventType = "ALARM",
+            EventType = "FUEL_CELL_ALARM",
             NodeId    = nodeId,
-            Severity  = parsed?.Severity  ?? "LOW",
-            Analysis  = parsed?.Analysis  ?? raw,
-            Action    = parsed?.Action    ?? string.Empty,
+            Severity  = parsed?.Severity ?? "LOW",
+            Analysis  = parsed?.Analysis ?? raw,
+            Action    = parsed?.Action   ?? string.Empty,
+            Timestamp = DateTime.UtcNow
+        };
+    }
+
+    private async Task<TelemetryEvent> SimulateTurbineAlarmAsync(IClaudeService claude, CancellationToken ct)
+    {
+        var nodeId    = GasTurbines[_rng.Next(GasTurbines.Length)];
+        var alarmType = TurbineAlarms[_rng.Next(TurbineAlarms.Length)];
+        var (sensorValue, unit) = alarmType switch
+        {
+            "HIGH_EXHAUST_TEMP"  => (600.0 + _rng.NextDouble() * 120, "degC"),
+            "HIGH_VIBRATION"     => (6.0   + _rng.NextDouble() * 6,   "mm/s"),
+            "LOW_OIL_PRESSURE"   => (0.5   + _rng.NextDouble() * 2.5, "bar"),
+            "COMPRESSOR_SURGE"   => (88.0  + _rng.NextDouble() * 10,  "%"),
+            "OVERSPEED_TRIP"     => (3000  + _rng.NextDouble() * 400,  "RPM"),
+            _                    => (_rng.NextDouble() * 100,           "units")
+        };
+
+        var prompt = $$"""
+            You are an AI agent monitoring gas turbines at a natural gas-fired power generation facility.
+            Analyze the following turbine alarm and respond with a JSON object using snake_case keys:
+            {
+              "analysis": "<one sentence assessment>",
+              "action": "<recommended operator action>",
+              "severity": "<LOW|MEDIUM|HIGH>"
+            }
+            Turbine: {{nodeId}}
+            Alarm: {{alarmType}}
+            Sensor value: {{sensorValue:F1}} {{unit}}
+            Respond with JSON only.
+            """;
+
+        var raw = await claude.AnalyzeAlarmAsync(prompt, ct);
+        var parsed = ParseOrDefault<GeneratorAlarmResponse>(raw);
+
+        return new TelemetryEvent
+        {
+            EventType = "TURBINE_ALARM",
+            NodeId    = nodeId,
+            Severity  = parsed?.Severity ?? "LOW",
+            Analysis  = parsed?.Analysis ?? raw,
+            Action    = parsed?.Action   ?? string.Empty,
+            Timestamp = DateTime.UtcNow
+        };
+    }
+
+    private async Task<TelemetryEvent> SimulateDispatchAsync(IGenerationTools tools, CancellationToken ct)
+    {
+        var generatorId      = GasTurbines[_rng.Next(GasTurbines.Length)];
+        var currentMw        = 60.0 + _rng.NextDouble() * 50;
+        var contractedLoadMw = 85.0 + _rng.NextDouble() * 20;
+
+        var dispatch  = await tools.GetGeneratorDispatchStateAsync(generatorId, currentMw, contractedLoadMw, ct);
+        var fuelCell  = await tools.GetFuelCellStatusAsync(generatorId, ct);
+        var gas       = await tools.GetGasSupplyAdequacyAsync(generatorId, ct);
+        var emissions = await tools.GetEmissionsStateAsync(generatorId, ct);
+
+        var gap = dispatch.ContractedLoadMw - dispatch.CurrentMw;
+
+        string severity;
+        if (!gas.IsAdequate || !emissions.IsCompliant)
+            severity = "HIGH";
+        else if (gap > fuelCell.AvailableMw)
+            severity = "HIGH";
+        else if (gap > 0)
+            severity = "MEDIUM";
+        else
+            severity = "LOW";
+
+        return new TelemetryEvent
+        {
+            EventType = "DISPATCH",
+            NodeId    = generatorId,
+            Severity  = severity,
+            Analysis  = $"{generatorId} at {currentMw:F1} MW vs contracted {contractedLoadMw:F1} MW (gap {gap:+0.0;-0.0} MW).",
+            Action    = severity switch
+            {
+                "HIGH"   => "Increase dispatch immediately; commit fuel-cell reserve or shed load.",
+                "MEDIUM" => "Ramp generation; pre-stage fuel-cell reserve for demand forecast.",
+                _        => "Maintain current dispatch; continue monitoring."
+            },
             Timestamp = DateTime.UtcNow
         };
     }

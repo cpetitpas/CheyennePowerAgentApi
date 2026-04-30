@@ -69,4 +69,21 @@ public abstract class TestBase : IClassFixture<WebApplicationFactory<Program>>
         Unit = "MMSCFD",
         Context = "Fuel supply header to Unit 1"
     };
+
+    protected static GeneratorDispatchRequest ValidGeneratorDispatchRequest() => new()
+    {
+        GeneratorId = "GT-001",
+        DataCenterId = "DC-001",
+        CurrentMw = 88.0,
+        ContractedLoadMw = 95.0,
+        ReserveTargetMw = 4.0
+    };
+
+    protected static TurbineAlarmRequest ValidTurbineAlarmRequest() => new()
+    {
+        TurbineId = "GT-001",
+        AlarmType = "HIGH_EXHAUST_TEMP",
+        SensorValue = 668.0,
+        Unit = "degC"
+    };
 }

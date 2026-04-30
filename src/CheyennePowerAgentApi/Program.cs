@@ -8,6 +8,7 @@ builder.Services.AddControllers()
         o.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower);
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IClaudeService, ClaudeService>();
+builder.Services.AddScoped<IGenerationTools, GenerationTools>();
 builder.Services.AddSingleton<TelemetryChannel>();
 builder.Services.AddHostedService<TelemetrySimulator>();
 
