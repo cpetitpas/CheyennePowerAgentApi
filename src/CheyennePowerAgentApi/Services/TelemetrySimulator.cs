@@ -171,15 +171,23 @@ public class TelemetrySimulator : BackgroundService
         var currentMw        = 60.0 + _rng.NextDouble() * 50;
         var contractedLoadMw = 85.0 + _rng.NextDouble() * 20;
 
-        var dispatch  = await tools.GetGeneratorDispatchStateAsync(generatorId, currentMw, contractedLoadMw, ct);
-        var fuelCell  = await tools.GetFuelCellStatusAsync(generatorId, ct);
-        var gas       = await tools.GetGasSupplyAdequacyAsync(generatorId, ct);
-        var emissions = await tools.GetEmissionsStateAsync(generatorId, ct);
+        var dispatchResult  = await tools.GetGeneratorDispatchStateAsync(generatorId, currentMw, contractedLoadMw, ct);
+        var fuelCellResult  = await tools.GetFuelCellStatusAsync(generatorId, ct);
+        var gasResult       = await tools.GetGasSupplyAdequacyAsync(generatorId, ct);
+        var emissionsResult = await tools.GetEmissionsStateAsync(generatorId, ct);
+
+        var dispatch  = dispatchResult.Data!;
+        var fuelCell  = fuelCellResult.Data!;
+        var gas       = gasResult.Data!;
+        var emissions = emissionsResult.Data!;
+
+        var anyDegraded = !dispatchResult.IsOk || !fuelCellResult.IsOk ||
+                          !gasResult.IsOk || !emissionsResult.IsOk;
 
         var gap = dispatch.ContractedLoadMw - dispatch.CurrentMw;
 
         string severity;
-        if (!gas.IsAdequate || !emissions.IsCompliant)
+        if (anyDegraded || !gas.IsAdequate || !emissions.IsCompliant)
             severity = "HIGH";
         else if (gap > fuelCell.AvailableMw)
             severity = "HIGH";
@@ -193,9 +201,13 @@ public class TelemetrySimulator : BackgroundService
             EventType = "DISPATCH",
             NodeId    = generatorId,
             Severity  = severity,
-            Analysis  = $"{generatorId} at {currentMw:F1} MW vs contracted {contractedLoadMw:F1} MW (gap {gap:+0.0;-0.0} MW).",
+            Analysis  = anyDegraded
+                ? $"{generatorId}: dispatch data degraded — operating on fallback values (gap {gap:+0.0;-0.0} MW)."
+                : $"{generatorId} at {currentMw:F1} MW vs contracted {contractedLoadMw:F1} MW (gap {gap:+0.0;-0.0} MW).",
             Action    = severity switch
             {
+                "HIGH" when anyDegraded
+                    => "Verify tool data sources; treat dispatch as at-risk until sources recover.",
                 "HIGH"   => "Increase dispatch immediately; commit fuel-cell reserve or shed load.",
                 "MEDIUM" => "Ramp generation; pre-stage fuel-cell reserve for demand forecast.",
                 _        => "Maintain current dispatch; continue monitoring."

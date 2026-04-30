@@ -12,7 +12,7 @@ namespace CheyennePowerAgentApi.Tests;
 public abstract class TestBase : IClassFixture<WebApplicationFactory<Program>>
 {
     protected readonly HttpClient Client;
-    private static readonly JsonSerializerOptions JsonOpts = new()
+    protected static readonly JsonSerializerOptions JsonOpts = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
     };
@@ -43,6 +43,15 @@ public abstract class TestBase : IClassFixture<WebApplicationFactory<Program>>
     protected async Task<T> PostAndDeserialize<T>(string url, object body)
     {
         var response = await PostAsync(url, body);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<T>(JsonOpts);
+        Assert.NotNull(result);
+        return result!;
+    }
+
+    protected async Task<T> GetAndDeserialize<T>(string url)
+    {
+        var response = await Client.GetAsync(url);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<T>(JsonOpts);
         Assert.NotNull(result);
