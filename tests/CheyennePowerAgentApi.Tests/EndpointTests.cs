@@ -48,24 +48,37 @@ public class EndpointTests : TestBase
     [Fact]
     public async Task GeneratorDispatch_Returns200_WithValidRequest()
     {
+        var request = ValidGeneratorDispatchRequest();
         var response = await PostAndDeserialize<GeneratorDispatchResponse>(
             "/api/generation/dispatch",
-            ValidGeneratorDispatchRequest());
+            request);
 
         Assert.NotNull(response);
         Assert.False(string.IsNullOrWhiteSpace(response.Analysis));
-        Assert.Contains(response.Severity, new[] { "LOW", "MEDIUM", "HIGH" });
+        Assert.Equal("MEDIUM", response.Severity);
+        Assert.Equal(7.0, response.DispatchGapMw, 1);
+        Assert.Equal(95.0, response.RecommendedSetpointMw, 1);
+        Assert.False(response.ShedLoad);
+        Assert.True(response.DispatchGapMw > 0);
+        Assert.Equal(
+            Math.Round(request.CurrentMw + Math.Max(0, response.DispatchGapMw), 1),
+            response.RecommendedSetpointMw,
+            1);
     }
 
     [Fact]
     public async Task TurbineAnalyze_Returns200_WithValidRequest()
     {
+        var request = ValidTurbineAlarmRequest();
         var response = await PostAndDeserialize<TurbineAlarmResponse>(
             "/api/turbine/analyze",
-            ValidTurbineAlarmRequest());
+            request);
 
         Assert.NotNull(response);
         Assert.False(string.IsNullOrWhiteSpace(response.Analysis));
-        Assert.Contains(response.Severity, new[] { "LOW", "MEDIUM", "HIGH" });
+        Assert.Equal("MEDIUM", response.Severity);
+        Assert.Equal(10.0, response.RecommendedDeratePercent, 1);
+        Assert.True(response.RecommendedDeratePercent > 0);
+        Assert.True(response.RecommendedDeratePercent <= 30);
     }
 }

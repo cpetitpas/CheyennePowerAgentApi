@@ -10,10 +10,10 @@ public interface IGenerationTools
         double contractedLoadMw,
         CancellationToken ct = default);
 
-    Task<FuelCellStatus> GetFuelCellStatusAsync(string siteId, CancellationToken ct = default);
-    Task<GasSupplyAdequacy> GetGasSupplyAdequacyAsync(string siteId, CancellationToken ct = default);
+    Task<FuelCellStatus> GetFuelCellStatusAsync(string generatorId, CancellationToken ct = default);
+    Task<GasSupplyAdequacy> GetGasSupplyAdequacyAsync(string generatorId, CancellationToken ct = default);
     Task<LoadForecast> GetLoadForecastAsync(string dataCenterId, CancellationToken ct = default);
-    Task<EmissionsState> GetEmissionsStateAsync(string siteId, CancellationToken ct = default);
+    Task<EmissionsState> GetEmissionsStateAsync(string generatorId, CancellationToken ct = default);
 }
 
 public class GenerationTools : IGenerationTools
@@ -32,21 +32,21 @@ public class GenerationTools : IGenerationTools
         });
     }
 
-    public Task<FuelCellStatus> GetFuelCellStatusAsync(string siteId, CancellationToken ct = default)
+    public Task<FuelCellStatus> GetFuelCellStatusAsync(string generatorId, CancellationToken ct = default)
     {
         return Task.FromResult(new FuelCellStatus
         {
-            SiteId = siteId,
+            GeneratorId = generatorId,
             AvailableMw = 4.0,
             Health = "GOOD"
         });
     }
 
-    public Task<GasSupplyAdequacy> GetGasSupplyAdequacyAsync(string siteId, CancellationToken ct = default)
+    public Task<GasSupplyAdequacy> GetGasSupplyAdequacyAsync(string generatorId, CancellationToken ct = default)
     {
         return Task.FromResult(new GasSupplyAdequacy
         {
-            SiteId = siteId,
+            GeneratorId = generatorId,
             PressureBar = 52.0,
             FlowMmscfd = 160.0,
             IsAdequate = true
@@ -63,11 +63,11 @@ public class GenerationTools : IGenerationTools
         });
     }
 
-    public Task<EmissionsState> GetEmissionsStateAsync(string siteId, CancellationToken ct = default)
+    public Task<EmissionsState> GetEmissionsStateAsync(string generatorId, CancellationToken ct = default)
     {
         return Task.FromResult(new EmissionsState
         {
-            SiteId = siteId,
+            GeneratorId = generatorId,
             NoxPpm = 21.0,
             CoPpm = 6.0,
             IsCompliant = true
