@@ -25,6 +25,7 @@ public sealed class ToolResult<T>
     /// <summary>Populated when Status == DEGRADED; describes why the fallback was used.</summary>
     public string? FallbackReason { get; init; }
 
+    [System.Text.Json.Serialization.JsonIgnore]
     public bool IsOk => Status == "OK";
 
     public static ToolResult<T> Ok(T data, string source, int staleAfterSeconds) => new()

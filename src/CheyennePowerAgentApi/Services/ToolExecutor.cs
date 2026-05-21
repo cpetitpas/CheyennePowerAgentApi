@@ -1,4 +1,5 @@
 using CheyennePowerAgentApi.Models;
+using Microsoft.Extensions.Logging;
 
 namespace CheyennePowerAgentApi.Services;
 
@@ -21,7 +22,8 @@ public static class ToolExecutor
         int staleAfterSeconds = 60,
         int timeoutMs = 3000,
         int maxRetries = 2,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        ILogger? logger = null)
     {
         Exception? lastEx = null;
 
@@ -51,8 +53,23 @@ public static class ToolExecutor
             }
         }
 
+        if (lastEx is not null)
+        {
+            logger?.LogWarning(lastEx, "Tool execution failed for source {Source} after {AttemptCount} attempt(s)", source, maxRetries + 1);
+        }
+
         return ToolResult<T>.Degraded(
             fallback, source,
-            lastEx?.Message ?? "unknown error after retries");
+            NormalizeFallbackReason(lastEx));
+    }
+
+    private static string NormalizeFallbackReason(Exception? ex)
+    {
+        return ex switch
+        {
+            TimeoutException => "tool_timeout",
+            HttpRequestException => "upstream_unreachable",
+            _ => "tool_execution_failed"
+        };
     }
 }

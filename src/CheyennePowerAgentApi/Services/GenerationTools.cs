@@ -1,4 +1,5 @@
 using CheyennePowerAgentApi.Models;
+using Microsoft.Extensions.Logging;
 
 namespace CheyennePowerAgentApi.Services;
 
@@ -18,6 +19,13 @@ public interface IGenerationTools
 
 public class GenerationTools : IGenerationTools
 {
+    private readonly ILogger<GenerationTools> _logger;
+
+    public GenerationTools(ILogger<GenerationTools> logger)
+    {
+        _logger = logger;
+    }
+
     public Task<ToolResult<GeneratorDispatchState>> GetGeneratorDispatchStateAsync(
         string generatorId,
         double currentMw,
@@ -38,7 +46,8 @@ public class GenerationTools : IGenerationTools
             },
             source:            "stub",
             staleAfterSeconds: 30,
-            ct:                ct);
+            ct:                ct,
+            logger:            _logger);
 
     public Task<ToolResult<FuelCellStatus>> GetFuelCellStatusAsync(string generatorId, CancellationToken ct = default)
         => ToolExecutor.ExecuteAsync(
@@ -51,7 +60,8 @@ public class GenerationTools : IGenerationTools
             fallback: new FuelCellStatus { GeneratorId = generatorId },
             source:            "stub",
             staleAfterSeconds: 60,
-            ct:                ct);
+            ct:                ct,
+            logger:            _logger);
 
     public Task<ToolResult<GasSupplyAdequacy>> GetGasSupplyAdequacyAsync(string generatorId, CancellationToken ct = default)
         => ToolExecutor.ExecuteAsync(
@@ -66,7 +76,8 @@ public class GenerationTools : IGenerationTools
             fallback: new GasSupplyAdequacy { GeneratorId = generatorId, IsAdequate = false },
             source:            "stub",
             staleAfterSeconds: 30,
-            ct:                ct);
+            ct:                ct,
+            logger:            _logger);
 
     public Task<ToolResult<LoadForecast>> GetLoadForecastAsync(string dataCenterId, CancellationToken ct = default)
         => ToolExecutor.ExecuteAsync(
@@ -79,7 +90,8 @@ public class GenerationTools : IGenerationTools
             fallback: new LoadForecast { DataCenterId = dataCenterId },
             source:            "stub",
             staleAfterSeconds: 300,
-            ct:                ct);
+            ct:                ct,
+            logger:            _logger);
 
     public Task<ToolResult<EmissionsState>> GetEmissionsStateAsync(string generatorId, CancellationToken ct = default)
         => ToolExecutor.ExecuteAsync(
@@ -94,5 +106,6 @@ public class GenerationTools : IGenerationTools
             fallback: new EmissionsState { GeneratorId = generatorId, IsCompliant = false },
             source:            "stub",
             staleAfterSeconds: 60,
-            ct:                ct);
+            ct:                ct,
+            logger:            _logger);
 }
