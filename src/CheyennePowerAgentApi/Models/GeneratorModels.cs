@@ -20,6 +20,7 @@ public class FlowAnalysisRequest
 {
     public string NodeId { get; set; } = string.Empty;
     public double FlowRate { get; set; }
+    public double? ExpectedFlowRate { get; set; }
     public string Unit { get; set; } = string.Empty;
     public string? Context { get; set; }
 }

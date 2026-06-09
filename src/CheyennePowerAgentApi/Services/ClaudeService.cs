@@ -9,7 +9,7 @@ public class ClaudeService : IClaudeService
     private readonly string _apiKey;
 
     private const string ApiUrl = "https://api.anthropic.com/v1/messages";
-    private const string Model = "claude-opus-4-1";
+    private const string Model = "claude-opus-4-8";
 
     public ClaudeService(IHttpClientFactory httpClientFactory, IConfiguration config)
     {
