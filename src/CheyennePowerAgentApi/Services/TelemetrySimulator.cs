@@ -33,6 +33,14 @@ public class TelemetrySimulator : BackgroundService
     ];
 
     private readonly Random _rng = new();
+    private const double DefaultExpectedFlowMmscfd = 175.0;
+
+    private static readonly IReadOnlyDictionary<string, double> ExpectedFlowByNode =
+        new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["FUEL-001"] = 180.0,
+            ["FUEL-002"] = 170.0
+        };
 
     public TelemetrySimulator(
         TelemetryChannel channel,
@@ -221,6 +229,8 @@ public class TelemetrySimulator : BackgroundService
         var nodeId   = FuelNodes[_rng.Next(FuelNodes.Length)];
         var flowRate = 100.0 + _rng.NextDouble() * 100;
         var unit     = "MMSCFD";
+        var expectedFlowRate = ResolveExpectedFlowRate(nodeId);
+        var computedVariance = CalculateVariancePercent(flowRate, expectedFlowRate);
 
         var prompt = $$"""
             You are an AI agent monitoring fuel gas flow to a natural gas-fired power generation facility.
@@ -233,21 +243,54 @@ public class TelemetrySimulator : BackgroundService
             }
             Node: {{nodeId}}
             Flow rate: {{flowRate:F1}} {{unit}}
+            Expected/setpoint flow rate: {{expectedFlowRate:F1}} {{unit}}
+            Compute variance using this formula:
+            variance = ((flow_rate - expected_flow_rate) / expected_flow_rate) * 100
+            Return numeric variance only (no percent sign).
             Respond with JSON only.
             """;
 
         var raw = await claude.AnalyzeFlowAsync(prompt, ct);
         var parsed = ParseOrDefault<FlowAnalysisResponse>(raw);
+        var absVariance = Math.Abs(computedVariance);
+        var computedSeverity = absVariance switch
+        {
+            >= 15.0 => "HIGH",
+            >= 8.0 => "MEDIUM",
+            _ => "LOW"
+        };
 
         return new TelemetryEvent
         {
             EventType = "FLOW",
             NodeId    = nodeId,
-            Severity  = parsed?.Severity ?? "LOW",
+            Severity  = NormalizeSeverity(parsed?.Severity) ?? computedSeverity,
             Analysis  = parsed?.Analysis ?? raw,
             Action    = parsed?.Action   ?? string.Empty,
-            Variance  = parsed?.Variance,
+            Variance  = computedVariance,
             Timestamp = DateTime.UtcNow
+        };
+    }
+
+    private static double ResolveExpectedFlowRate(string nodeId)
+        => ExpectedFlowByNode.TryGetValue(nodeId, out var expected)
+            ? expected
+            : DefaultExpectedFlowMmscfd;
+
+    private static double CalculateVariancePercent(double actual, double expected)
+        => Math.Round(((actual - expected) / expected) * 100.0, 1);
+
+    private static string? NormalizeSeverity(string? severity)
+    {
+        if (string.IsNullOrWhiteSpace(severity))
+            return null;
+
+        return severity.Trim().ToUpperInvariant() switch
+        {
+            "LOW" => "LOW",
+            "MEDIUM" => "MEDIUM",
+            "HIGH" => "HIGH",
+            _ => null
         };
     }
 

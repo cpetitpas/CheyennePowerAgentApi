@@ -46,6 +46,22 @@ public class EndpointTests : TestBase
     }
 
     [Fact]
+    public async Task FlowAnalyze_ComputesVariance_FromExpectedFlowRate()
+    {
+        var req = ValidFlowRequest();
+        req.NodeId = "FUEL-001";
+        req.FlowRate = 197.9;
+        req.ExpectedFlowRate = 180.0;
+
+        var response = await PostAndDeserialize<FlowAnalysisResponse>(
+            "/api/flow/analyze",
+            req);
+
+        Assert.NotNull(response);
+        Assert.Equal(9.9, response.Variance, 1);
+    }
+
+    [Fact]
     public async Task GeneratorDispatch_Returns200_WithValidRequest()
     {
         var request = ValidGeneratorDispatchRequest();
