@@ -9,8 +9,10 @@ ASP.NET Core 10 Web API for real-time operations monitoring of a natural gas-fir
 - **Turbine alarm analysis** — Structured derate recommendations (`POST /api/turbine/analyze`)
 - **Generation dispatch** — Deterministic dispatch gap calculation with fuel-cell, gas supply, emissions, and load-forecast inputs (`POST /api/generation/dispatch`)
 - **Tool health endpoints** — Direct inspection of each generation data tool via `ToolResult<T>` envelope (`GET /api/tools/*`)
-- **Real-time SSE dashboard** — `dashboard.html` served at `/`; streams ALARM, FLOW, TURBINE_ALARM, and DISPATCH events via `GET /api/stream/events`
+- **Real-time SSE dashboard** — `dashboard.html` served at `/`; streams ALARM, FLOW, TURBINE_ALARM, DISPATCH, and correlated multi-node alarm events via `GET /api/stream/events`
 - **Tool health tab** — Live view of Status, Confidence, Source, and Staleness for all five generation tools
+- **Investigate workflow** — Paste alarm text from the Live Feed into the Investigate tab to trigger single-node or multi-node investigations with parsed severity, conclusion, and recommended action
+- **Robust Claude response parsing** — Handles mixed prose + JSON responses from Claude by extracting structured investigation data even when the model includes explanatory text or fenced code blocks
 
 ## Tool layer
 
