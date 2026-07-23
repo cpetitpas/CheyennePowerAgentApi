@@ -319,6 +319,17 @@
     <button class="filter-btn" id="mode-multi" onclick="setMode('multi')">Multi Node</button>
   </div>
 
+  <div style="margin-bottom:12px;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px;">
+    <label class="field-label">Paste alarm text from the Live Feed</label>
+    <textarea id="paste-alarm-text" rows="4" class="field-input" placeholder="Example: Node: GT-001 | Alarm: HIGH_EXHAUST_TEMP | Sensor value: 650 degC | Context: Unit 1 running at 85% load"></textarea>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+      <button class="filter-btn" onclick="parseAlarmTextFromInput()">Parse Alarm</button>
+      <button class="filter-btn" onclick="clearParsedInput()">Clear</button>
+      <button class="filter-btn" onclick="setMode('multi'); parseAlarmTextFromInput(true)">Parse into Multi Node</button>
+    </div>
+    <div id="parse-status" style="margin-top:8px;font-size:.75rem;color:#8b949e;"></div>
+  </div>
+
   <!-- Single Node form -->
   <div id="form-single">
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;">
@@ -769,6 +780,171 @@ function addNodeRow() {
 function removeNodeRow() {
   const rows = document.getElementById('node-rows');
   if (rows.children.length > 2) rows.removeChild(rows.lastChild);
+}
+
+function parseAlarmTextFromInput(forMulti = false) {
+  const raw = document.getElementById('paste-alarm-text').value || '';
+  const status = document.getElementById('parse-status');
+
+  if (!raw.trim()) {
+    status.textContent = 'Paste alarm text first.';
+    status.style.color = '#f85149';
+    return;
+  }
+
+  const parsedItems = parseAlarmTextBatch(raw);
+
+  if (!parsedItems.length) {
+    status.textContent = 'No recognizable alarm data was found. Try pasting the alarm text exactly as it appears in the Live Feed.';
+    status.style.color = '#f85149';
+    return;
+  }
+
+  if (forMulti) {
+    setMode('multi');
+    populateMultiNodeRows(parsedItems);
+  } else {
+    const first = parsedItems[0];
+    document.getElementById('s-node').value = first.nodeId || document.getElementById('s-node').value;
+    document.getElementById('s-alarm').value = first.alarmType || '';
+    document.getElementById('s-value').value = first.sensorValue ?? '';
+    document.getElementById('s-unit').value = first.unit || '';
+    document.getElementById('s-context').value = first.context || '';
+  }
+
+  const countLabel = parsedItems.length > 1 ? `${parsedItems.length} entries` : '1 entry';
+  status.textContent = `Parsed ${countLabel} from the pasted text.`;
+  status.style.color = '#3fb950';
+}
+
+function clearParsedInput() {
+  document.getElementById('paste-alarm-text').value = '';
+  document.getElementById('parse-status').textContent = '';
+  document.getElementById('parse-status').style.color = '#8b949e';
+}
+
+function parseAlarmTextBatch(text) {
+  const rawBlocks = (text || '')
+    .split(/\n{2,}|\s*(?:\bnext\b|\badditional\b|\balert\b|\bincident\b)\s*/i)
+    .map(block => block.trim())
+    .filter(Boolean);
+
+  const parsedItems = rawBlocks.map(block => parseAlarmText(block)).filter(Boolean);
+  if (parsedItems.length) return parsedItems;
+
+  const single = parseAlarmText(text);
+  return single ? [single] : [];
+}
+
+function parseAlarmText(text) {
+  const normalized = (text || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return null;
+
+  const nodeId = extractNodeId(normalized);
+  const alarmType = extractAlarmType(normalized);
+  const sensorValue = extractSensorValue(normalized);
+  const unit = extractUnit(normalized);
+  const context = extractContext(normalized);
+
+  if (!nodeId && !alarmType && !sensorValue && !context) return null;
+
+  return { nodeId, alarmType, sensorValue, unit, context };
+}
+
+function extractNodeId(text) {
+  const patterns = [
+    /\b(?:node|unit|equipment|generator|turbine|sensor)\s*[:#-]\s*([A-Z]{2,5}-\d{3})\b/i,
+    /\b([A-Z]{2,5}-\d{3})\b/g
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const candidate = (match[1] || match[0]).trim().toUpperCase();
+      if (candidate && /[A-Z]{2,5}-\d{3}/.test(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractAlarmType(text) {
+  const patterns = [
+    /\balarm(?:\s+type)?\s*[:#-]\s*([A-Z0-9_]+)/i,
+    /\b(?:alarm|event)\s+([A-Z0-9_]{3,})\b/i,
+    /\b([A-Z][A-Z0-9_]{3,})\b/
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const candidate = (match[1] || '').trim().toUpperCase();
+      if (candidate && /[A-Z0-9_]/.test(candidate) && !/^GT|^FUEL|^FC|^NODE|^UNIT|^SENSOR/i.test(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  return null;
+}
+
+function populateMultiNodeRows(items) {
+  const rows = document.getElementById('node-rows');
+  rows.innerHTML = '';
+
+  const safeItems = items.slice(0, 10);
+  safeItems.forEach((item) => {
+    addNodeRow();
+  });
+
+  const rowElements = Array.from(rows.children);
+  rowElements.forEach((row, index) => {
+    const item = safeItems[index] || safeItems[0] || {};
+    row.querySelector('.mr-node').value = item.nodeId || NODES[index % NODES.length];
+    row.querySelector('.mr-alarm').value = item.alarmType || '';
+    row.querySelector('.mr-value').value = item.sensorValue != null ? item.sensorValue : '';
+    row.querySelector('.mr-unit').value = item.unit || '';
+  });
+}
+
+function extractSensorValue(text) {
+  const patterns = [
+    /\b(?:sensor|reading|value)\s*(?:value)?\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)/i,
+    /\b([0-9]+(?:\.[0-9]+)?)\s*(?:degc|°c|mmscfd|mw|kw|psi|rpm|%)/i,
+    /\b([0-9]+(?:\.[0-9]+)?)\b/
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const candidate = parseFloat(match[1]);
+      if (!Number.isNaN(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractUnit(text) {
+  const match = text.match(/\b(degC|°C|MMSCFD|MW|KW|psi|rpm|%)\b/i);
+  return match ? match[1].toUpperCase() : null;
+}
+
+function extractContext(text) {
+  const labelMatch = text.match(/\bcontext\s*[:#-]\s*(.+)$/i);
+  if (labelMatch) return labelMatch[1].trim();
+
+  const parts = text.split(/\b(?:node|alarm|sensor|value|unit)\b/i);
+  if (parts.length > 1) {
+    const fallback = parts[parts.length - 1].trim();
+    if (fallback) return fallback;
+  }
+
+  return null;
 }
 
 async function runSingle() {
