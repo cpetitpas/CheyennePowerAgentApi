@@ -41,11 +41,18 @@ public class GeneratorAlarmController : ControllerBase
             Respond with JSON only. No explanation outside the JSON object.
             """;
 
-        var raw = await _claude.AnalyzeAlarmAsync(prompt, ct);
+        try
+        {
+            var raw = await _claude.AnalyzeAlarmAsync(prompt, ct);
 
-        var result = JsonSerializer.Deserialize<GeneratorAlarmResponse>(raw,
-            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower });
+            var result = JsonSerializer.Deserialize<GeneratorAlarmResponse>(raw,
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower });
 
-        return result is null ? StatusCode(502, "Failed to parse Claude response.") : Ok(result);
+            return result is null ? StatusCode(502, "Failed to parse Claude response.") : Ok(result);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Anthropic API key", StringComparison.OrdinalIgnoreCase))
+        {
+            return StatusCode(503, new { error = ex.Message });
+        }
     }
 }

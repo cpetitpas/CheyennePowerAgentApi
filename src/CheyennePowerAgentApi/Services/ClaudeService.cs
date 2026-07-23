@@ -14,7 +14,7 @@ public class ClaudeService : IClaudeService
     public ClaudeService(IHttpClientFactory httpClientFactory, IConfiguration config)
     {
         _httpClient = httpClientFactory.CreateClient();
-        _apiKey = config["Anthropic:ApiKey"] ?? throw new InvalidOperationException("Anthropic API key not configured");
+        _apiKey = AnthropicConfiguration.GetApiKey(config) ?? string.Empty;
     }
 
     public Task<string> AnalyzeAlarmAsync(string prompt, CancellationToken ct = default)
@@ -28,6 +28,9 @@ public class ClaudeService : IClaudeService
 
     private async Task<string> SendToClaudeAsync(string prompt, CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(_apiKey))
+            throw new InvalidOperationException("Anthropic API key is not configured.");
+
         var requestBody = new
         {
             model = Model,
