@@ -62,9 +62,13 @@ public class TelemetrySimulator : BackgroundService
             {
                 await using var scope = _services.CreateAsyncScope();
 
-                var eventClass = _rng.Next(4);
+                var eventClass = _rng.Next(5);
                 TelemetryEvent evt;
-                if (eventClass == 3)
+                if (eventClass == 4)
+                {
+                    evt = CreateMultiNodeAlarmEvent();
+                }
+                else if (eventClass == 3)
                 {
                     var tools = scope.ServiceProvider.GetRequiredService<IGenerationTools>();
                     evt = await SimulateDispatchAsync(tools, ct);
@@ -88,6 +92,50 @@ public class TelemetrySimulator : BackgroundService
                 _logger.LogError(ex, "TelemetrySimulator error");
             }
         }
+    }
+
+    private TelemetryEvent CreateMultiNodeAlarmEvent()
+    {
+        var severity = _rng.Next(100) switch
+        {
+            < 20 => "HIGH",
+            < 60 => "MEDIUM",
+            _ => "LOW"
+        };
+
+        string[] nodeSet = severity switch
+        {
+            "HIGH" => ["GT-001", "FUEL-001", "FC-001"],
+            "MEDIUM" => ["GT-002", "GT-003", "FUEL-002"],
+            _ => ["GT-004", "FC-002"]
+        };
+
+        var cause = _rng.Next(4) switch
+        {
+            0 => "control network segment",
+            1 => "common power supply",
+            2 => "time synchronization failure",
+            _ => "fiber ring degradation"
+        };
+
+        return CreateMultiNodeAlarmEvent(nodeSet, cause, severity);
+    }
+
+    public static TelemetryEvent CreateMultiNodeAlarmEvent(IEnumerable<string> nodes, string cause, string severity)
+    {
+        var nodeList = nodes.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var joinedNodes = string.Join(", ", nodeList);
+
+        return new TelemetryEvent
+        {
+            EventType = "MULTI_NODE_ALARM",
+            NodeId = joinedNodes,
+            Nodes = nodeList,
+            Severity = severity.ToUpperInvariant(),
+            Analysis = $"Correlated {cause} affecting {joinedNodes}.",
+            Action = "Inspect shared communications and control infrastructure; verify redundancy and isolate the common fault before it escalates.",
+            Timestamp = DateTime.UtcNow
+        };
     }
 
     private async Task<TelemetryEvent> SimulateFuelCellAlarmAsync(IClaudeService claude, CancellationToken ct)

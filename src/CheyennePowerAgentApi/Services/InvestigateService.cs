@@ -131,14 +131,9 @@ public class InvestigateService : IInvestigateService
 
     private static InvestigateResponse? TryParse(string raw)
     {
-        try
-        {
-            // Strip markdown fences if present
-            var clean = raw.Trim();
-            if (clean.StartsWith("```")) clean = string.Join('\n', clean.Split('\n').Skip(1).SkipLast(1));
-            return JsonSerializer.Deserialize<InvestigateResponse>(clean,
-                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower });
-        }
-        catch { return null; }
+        if (AnthropicResponseParser.TryParseJson<InvestigateResponse>(raw, out var response))
+            return response;
+
+        return null;
     }
 }

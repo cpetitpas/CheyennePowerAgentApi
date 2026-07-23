@@ -140,6 +140,7 @@
   .badge.FUEL_CELL_ALARM { background: #f0883e1a; color: #f0883e; }
   .badge.TURBINE_ALARM { background: #ffa6571a; color: #ffa657; }
   .badge.DISPATCH      { background: #39d3531a; color: #39d353; }
+  .badge.MULTI_NODE_ALARM { background: #ff5f57; color: #fff; }
 
   .event-node { font-weight: 600; font-size: 0.85rem; }
   .event-time { font-size: 0.72rem; color: #8b949e; margin-left: auto; }
@@ -299,6 +300,7 @@
         <button class="filter-btn" onclick="setFilter('FLOW',this)">FLOW</button>
         <button class="filter-btn" onclick="setFilter('TURBINE_ALARM',this)">TURBINE</button>
         <button class="filter-btn" onclick="setFilter('DISPATCH',this)">DISPATCH</button>
+        <button class="filter-btn" onclick="setFilter('MULTI_NODE_ALARM',this)">MULTI-NODE</button>
         <button class="filter-btn" onclick="setFilter('HIGH',this)">HIGH</button>
         <button class="pause-btn" id="pause-btn" onclick="togglePause()">⏸ Pause</button>
       </div>
@@ -555,16 +557,20 @@ function makeCard(ev) {
 
   const card = document.createElement('div');
   card.className = `event-card ${ev.severity}`;
+  const nodesDisplay = ev.nodes && ev.nodes.length
+    ? `<div class="event-meta">Nodes: ${esc(ev.nodes.join(', '))}</div>`
+    : '';
   card.innerHTML = `
     <div class="event-header">
       <span class="badge ${ev.event_type}">${ev.event_type}</span>
-      <span class="event-node">${ev.node_id}</span>
+      <span class="event-node">${esc(ev.node_id)}</span>
       <span class="badge ${ev.severity}">${ev.severity}</span>
       ${variance}
       <span class="event-time">${time}</span>
     </div>
-    <div class="event-analysis">${ev.analysis}</div>
-    <div class="event-action">→ ${ev.action}</div>`;
+    <div class="event-analysis">${esc(ev.analysis)}</div>
+    ${nodesDisplay}
+    <div class="event-action">→ ${esc(ev.action)}</div>`;
   return card;
 }
 
@@ -603,6 +609,7 @@ function normalizeEvent(raw) {
     analysis: raw.analysis ?? '',
     action: raw.action ?? '',
     variance: raw.variance ?? null,
+    nodes: Array.isArray(raw.nodes) ? raw.nodes : [],
     timestamp: raw.timestamp ?? new Date().toISOString()
   };
 }
@@ -824,6 +831,29 @@ function clearParsedInput() {
 }
 
 function parseAlarmTextBatch(text) {
+  const lines = (text || '')
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean);
+
+  if (lines.length > 1) {
+    const multiNodeLike = lines.some(line => line.toUpperCase().startsWith('MULTI_NODE_ALARM'));
+    if (multiNodeLike) {
+      const nodes = extractNodesFromLines(lines);
+      const severity = extractSeverityFromLines(lines);
+      const context = extractContextFromLines(lines);
+      if (nodes.length) {
+        return nodes.map(node => ({
+          nodeId: node,
+          alarmType: 'MULTI_NODE_ALARM',
+          sensorValue: null,
+          unit: '',
+          context: context || `Multi-node alarm: ${nodes.join(', ')}`
+        }));
+      }
+    }
+  }
+
   const rawBlocks = (text || '')
     .split(/\n{2,}|\s*(?:\bnext\b|\badditional\b|\balert\b|\bincident\b)\s*/i)
     .map(block => block.trim())
@@ -888,6 +918,26 @@ function extractAlarmType(text) {
   }
 
   return null;
+}
+
+function extractNodesFromLines(lines) {
+  const nodeMatches = [];
+  lines.forEach(line => {
+    const matches = line.match(/\b([A-Z]{2,5}-\d{3})\b/g) || [];
+    matches.forEach(match => nodeMatches.push(match.toUpperCase()));
+  });
+
+  return [...new Set(nodeMatches.filter(Boolean))];
+}
+
+function extractSeverityFromLines(lines) {
+  const severityLine = lines.find(line => /\b(low|medium|high)\b/i.test(line));
+  return severityLine ? severityLine.trim().toUpperCase() : 'LOW';
+}
+
+function extractContextFromLines(lines) {
+  const contextLine = lines.find(line => line.toLowerCase().startsWith('correlated '));
+  return contextLine ? contextLine.trim() : null;
 }
 
 function populateMultiNodeRows(items) {

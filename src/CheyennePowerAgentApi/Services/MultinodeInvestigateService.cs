@@ -113,13 +113,9 @@ public class MultiNodeInvestigateService : IMultiNodeInvestigateService
 
     private static MultiNodeInvestigateResponse? TryParseSynthesis(string raw)
     {
-        try
-        {
-            var clean = raw.Trim();
-            if (clean.StartsWith("```")) clean = string.Join('\n', clean.Split('\n').Skip(1).SkipLast(1));
-            return JsonSerializer.Deserialize<MultiNodeInvestigateResponse>(clean,
-                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower });
-        }
-        catch { return null; }
+        if (AnthropicResponseParser.TryParseJson<MultiNodeInvestigateResponse>(raw, out var response))
+            return response;
+
+        return null;
     }
 }
