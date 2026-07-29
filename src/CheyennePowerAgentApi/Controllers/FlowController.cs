@@ -60,13 +60,20 @@ public class FlowController : ControllerBase
             Respond with JSON only. No explanation outside the JSON object.
             """;
 
-        var raw = await _claude.AnalyzeFlowAsync(prompt, ct);
+        try
+        {
+            var raw = await _claude.AnalyzeFlowAsync(prompt, ct);
 
-        var result = JsonSerializer.Deserialize<FlowAnalysisResponse>(raw,
-            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower });
+            var result = JsonSerializer.Deserialize<FlowAnalysisResponse>(raw,
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower });
 
-        var response = BuildResponse(request, expectedFlowRate, computedVariance, result);
-        return Ok(response);
+            var response = BuildResponse(request, expectedFlowRate, computedVariance, result);
+            return Ok(response);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Anthropic API key", StringComparison.OrdinalIgnoreCase))
+        {
+            return StatusCode(503, new { error = ex.Message });
+        }
     }
 
     private static double ResolveExpectedFlowRate(FlowAnalysisRequest request)

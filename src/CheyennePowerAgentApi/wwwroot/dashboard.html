@@ -140,6 +140,7 @@
   .badge.FUEL_CELL_ALARM { background: #f0883e1a; color: #f0883e; }
   .badge.TURBINE_ALARM { background: #ffa6571a; color: #ffa657; }
   .badge.DISPATCH      { background: #39d3531a; color: #39d353; }
+  .badge.MULTI_NODE_ALARM { background: #ff5f57; color: #fff; }
 
   .event-node { font-weight: 600; font-size: 0.85rem; }
   .event-time { font-size: 0.72rem; color: #8b949e; margin-left: auto; }
@@ -189,6 +190,45 @@
   .tool-reason { background: #f851491a; border: 1px solid #f85149; border-radius: 4px; padding: 6px; font-size: 0.75rem; color: #f85149; }
   .tool-refresh { padding: 4px 12px; border-radius: 6px; border: 1px solid #30363d; background: #21262d; color: #8b949e; cursor: pointer; font-size: 0.75rem; align-self: flex-start; }
   .tool-refresh:hover { background: #30363d; color: #e6edf3; }
+
+  .field-label { display:block; font-size:.72rem; color:#8b949e; margin-bottom:4px; text-transform:uppercase; letter-spacing:.4px; }
+  .field-input {
+    width:100%; background:#0d1117; border:1px solid #30363d; border-radius:6px;
+    color:#e6edf3; padding:7px 10px; font-size:.82rem; font-family:inherit;
+  }
+  .field-input:focus { outline:none; border-color:#388bfd; }
+  select.field-input { cursor:pointer; }
+
+  .inv-btn {
+    padding:7px 20px; background:#388bfd; color:#fff; border:none;
+    border-radius:6px; cursor:pointer; font-size:.82rem; font-weight:600;
+  }
+  .inv-btn:hover { background:#58a6ff; }
+  .inv-btn:disabled { background:#21262d; color:#8b949e; cursor:not-allowed; }
+
+  .result-card {
+    background:#161b22; border:1px solid #30363d; border-radius:8px; padding:14px;
+    border-left:4px solid #30363d;
+  }
+  .result-card.HIGH   { border-left-color:#f85149; }
+  .result-card.MEDIUM { border-left-color:#d29922; }
+  .result-card.LOW    { border-left-color:#3fb950; }
+
+  .chip {
+    display:inline-block; font-size:.68rem; padding:2px 8px;
+    border-radius:10px; background:#388bfd1a; color:#388bfd; margin:2px;
+  }
+
+  .chat-bubble { padding:8px 12px; border-radius:8px; font-size:.82rem; max-width:85%; }
+  .chat-bubble.user      { background:#388bfd22; color:#e6edf3; align-self:flex-end; }
+  .chat-bubble.assistant { background:#21262d;    color:#e6edf3; align-self:flex-start; }
+  .chat-label { font-size:.68rem; color:#8b949e; margin-bottom:2px; }
+
+  .node-row-grid {
+    display:grid; grid-template-columns:140px 1fr 100px 80px;
+    gap:8px; align-items:end;
+    background:#161b22; border:1px solid #30363d; border-radius:8px; padding:10px;
+  }
 </style>
 </head>
 <body>
@@ -201,6 +241,7 @@
 
 <div class="tabs">
   <div class="tab active" onclick="switchTab('feed',this)">Live Feed</div>
+  <div class="tab" onclick="switchTab('investigate',this)">Investigate</div>
   <div class="tab" onclick="switchTab('tools',this)">Tools</div>
 </div>
 
@@ -259,6 +300,7 @@
         <button class="filter-btn" onclick="setFilter('FLOW',this)">FLOW</button>
         <button class="filter-btn" onclick="setFilter('TURBINE_ALARM',this)">TURBINE</button>
         <button class="filter-btn" onclick="setFilter('DISPATCH',this)">DISPATCH</button>
+        <button class="filter-btn" onclick="setFilter('MULTI_NODE_ALARM',this)">MULTI-NODE</button>
         <button class="filter-btn" onclick="setFilter('HIGH',this)">HIGH</button>
         <button class="pause-btn" id="pause-btn" onclick="togglePause()">⏸ Pause</button>
       </div>
@@ -268,6 +310,99 @@
     <div class="actions-panel">
       <div class="actions-title">Recent Actions</div>
       <div id="action-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Investigate page ── -->
+<div class="page" id="page-investigate">
+  <div style="display:flex;gap:8px;margin-bottom:14px;">
+    <button class="filter-btn active" id="mode-single" onclick="setMode('single')">Single Node</button>
+    <button class="filter-btn" id="mode-multi" onclick="setMode('multi')">Multi Node</button>
+  </div>
+
+  <div style="margin-bottom:12px;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px;">
+    <label class="field-label">Paste alarm text from the Live Feed</label>
+    <textarea id="paste-alarm-text" rows="4" class="field-input" placeholder="Example: Node: GT-001 | Alarm: HIGH_EXHAUST_TEMP | Sensor value: 650 degC | Context: Unit 1 running at 85% load"></textarea>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+      <button class="filter-btn" onclick="parseAlarmTextFromInput()">Parse Alarm</button>
+      <button class="filter-btn" onclick="clearParsedInput()">Clear</button>
+      <button class="filter-btn" onclick="setMode('multi'); parseAlarmTextFromInput(true)">Parse into Multi Node</button>
+    </div>
+    <div id="parse-status" style="margin-top:8px;font-size:.75rem;color:#8b949e;"></div>
+  </div>
+
+  <!-- Single Node form -->
+  <div id="form-single">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div>
+        <label class="field-label">Node</label>
+        <select id="s-node" class="field-input">
+          <option>GT-001</option><option>GT-002</option>
+          <option>GT-003</option><option>GT-004</option>
+          <option>FUEL-001</option><option>FUEL-002</option>
+          <option>FC-001</option><option>FC-002</option>
+        </select>
+      </div>
+      <div>
+        <label class="field-label">Alarm Type</label>
+        <input id="s-alarm" class="field-input" placeholder="e.g. HIGH_EXHAUST_TEMP">
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:6px;">
+        <div>
+          <label class="field-label">Sensor Value</label>
+          <input id="s-value" class="field-input" type="number" placeholder="0.0">
+        </div>
+        <div>
+          <label class="field-label">Unit</label>
+          <input id="s-unit" class="field-input" placeholder="degC">
+        </div>
+      </div>
+    </div>
+    <div style="margin-bottom:10px;">
+      <label class="field-label">Context (optional)</label>
+      <input id="s-context" class="field-input" placeholder="Additional context for the investigation">
+    </div>
+    <button class="inv-btn" onclick="runSingle()">▶ Investigate</button>
+  </div>
+
+  <!-- Multi Node form -->
+  <div id="form-multi" style="display:none;">
+    <div style="margin-bottom:10px;">
+      <label class="field-label">Region Context (optional)</label>
+      <input id="m-context" class="field-input" placeholder="e.g. All units on FUEL-001 header">
+    </div>
+    <div id="node-rows" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <button class="filter-btn" onclick="addNodeRow()">+ Add Node</button>
+      <button class="filter-btn" onclick="removeNodeRow()">− Remove</button>
+    </div>
+    <button class="inv-btn" onclick="runMulti()">▶ Investigate All</button>
+  </div>
+
+  <!-- Spinner -->
+  <div id="inv-spinner" style="display:none;margin:20px 0;color:#8b949e;font-size:.85rem;">
+    ⏳ Investigating — this may take 20–40 seconds…
+  </div>
+
+  <!-- Result -->
+  <div id="inv-result" style="display:none;margin-top:16px;"></div>
+
+  <!-- Chat panel -->
+  <div id="chat-panel" style="display:none;margin-top:16px;">
+    <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <span style="font-size:.8rem;color:#8b949e;text-transform:uppercase;letter-spacing:.5px;">Incident Chat</span>
+        <button class="filter-btn" onclick="clearChat()">Clear</button>
+      </div>
+      <div id="chat-history" style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:10px;scrollbar-width:thin;scrollbar-color:#30363d transparent;"></div>
+      <div style="display:flex;gap:8px;">
+        <textarea id="chat-input" rows="2"
+          style="flex:1;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;padding:8px;font-size:.82rem;resize:none;font-family:inherit;"
+          placeholder="Ask a follow-up question… (Enter to send, Shift+Enter for newline)"
+          onkeydown="chatKeydown(event)"></textarea>
+        <button class="inv-btn" style="align-self:flex-end;" onclick="sendChat()">Send</button>
+      </div>
     </div>
   </div>
 </div>
@@ -422,16 +557,20 @@ function makeCard(ev) {
 
   const card = document.createElement('div');
   card.className = `event-card ${ev.severity}`;
+  const nodesDisplay = ev.nodes && ev.nodes.length
+    ? `<div class="event-meta">Nodes: ${esc(ev.nodes.join(', '))}</div>`
+    : '';
   card.innerHTML = `
     <div class="event-header">
       <span class="badge ${ev.event_type}">${ev.event_type}</span>
-      <span class="event-node">${ev.node_id}</span>
+      <span class="event-node">${esc(ev.node_id)}</span>
       <span class="badge ${ev.severity}">${ev.severity}</span>
       ${variance}
       <span class="event-time">${time}</span>
     </div>
-    <div class="event-analysis">${ev.analysis}</div>
-    <div class="event-action">→ ${ev.action}</div>`;
+    <div class="event-analysis">${esc(ev.analysis)}</div>
+    ${nodesDisplay}
+    <div class="event-action">→ ${esc(ev.action)}</div>`;
   return card;
 }
 
@@ -470,6 +609,7 @@ function normalizeEvent(raw) {
     analysis: raw.analysis ?? '',
     action: raw.action ?? '',
     variance: raw.variance ?? null,
+    nodes: Array.isArray(raw.nodes) ? raw.nodes : [],
     timestamp: raw.timestamp ?? new Date().toISOString()
   };
 }
@@ -594,6 +734,437 @@ setInterval(() => {
 
 // Initial load on startup
 refreshTools();
+
+// ── Investigate ────────────────────────────────────────────────────────────
+let currentMode      = 'single';
+let currentIncidentId = null;
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('form-single').style.display = mode === 'single' ? '' : 'none';
+  document.getElementById('form-multi').style.display  = mode === 'multi'  ? '' : 'none';
+  document.getElementById('mode-single').classList.toggle('active', mode === 'single');
+  document.getElementById('mode-multi').classList.toggle('active', mode === 'multi');
+  document.getElementById('inv-result').style.display  = 'none';
+  document.getElementById('chat-panel').style.display  = 'none';
+  if (mode === 'multi' && document.getElementById('node-rows').children.length === 0) {
+    addNodeRow(); addNodeRow();
+  }
+}
+
+const NODES = ['GT-001','GT-002','GT-003','GT-004','FUEL-001','FUEL-002','FC-001','FC-002'];
+
+function nodeOptions(selected) {
+  return NODES.map(n => `<option${n === selected ? ' selected' : ''}>${n}</option>`).join('');
+}
+
+function addNodeRow() {
+  const rows = document.getElementById('node-rows');
+  if (rows.children.length >= 10) return;
+  const idx = rows.children.length;
+  const div = document.createElement('div');
+  div.className = 'node-row-grid';
+  div.innerHTML = `
+    <div>
+      ${idx === 0 ? '<label class="field-label">Node</label>' : ''}
+      <select class="field-input mr-node">${nodeOptions(NODES[idx % NODES.length])}</select>
+    </div>
+    <div>
+      ${idx === 0 ? '<label class="field-label">Alarm Type</label>' : ''}
+      <input class="field-input mr-alarm" placeholder="e.g. HIGH_VIBRATION">
+    </div>
+    <div>
+      ${idx === 0 ? '<label class="field-label">Value</label>' : ''}
+      <input class="field-input mr-value" type="number" placeholder="0.0">
+    </div>
+    <div>
+      ${idx === 0 ? '<label class="field-label">Unit</label>' : ''}
+      <input class="field-input mr-unit" placeholder="degC">
+    </div>`;
+  rows.appendChild(div);
+}
+
+function removeNodeRow() {
+  const rows = document.getElementById('node-rows');
+  if (rows.children.length > 2) rows.removeChild(rows.lastChild);
+}
+
+function parseAlarmTextFromInput(forMulti = false) {
+  const raw = document.getElementById('paste-alarm-text').value || '';
+  const status = document.getElementById('parse-status');
+
+  if (!raw.trim()) {
+    status.textContent = 'Paste alarm text first.';
+    status.style.color = '#f85149';
+    return;
+  }
+
+  const parsedItems = parseAlarmTextBatch(raw);
+
+  if (!parsedItems.length) {
+    status.textContent = 'No recognizable alarm data was found. Try pasting the alarm text exactly as it appears in the Live Feed.';
+    status.style.color = '#f85149';
+    return;
+  }
+
+  if (forMulti) {
+    setMode('multi');
+    populateMultiNodeRows(parsedItems);
+  } else {
+    const first = parsedItems[0];
+    document.getElementById('s-node').value = first.nodeId || document.getElementById('s-node').value;
+    document.getElementById('s-alarm').value = first.alarmType || '';
+    document.getElementById('s-value').value = first.sensorValue ?? '';
+    document.getElementById('s-unit').value = first.unit || '';
+    document.getElementById('s-context').value = first.context || '';
+  }
+
+  const countLabel = parsedItems.length > 1 ? `${parsedItems.length} entries` : '1 entry';
+  status.textContent = `Parsed ${countLabel} from the pasted text.`;
+  status.style.color = '#3fb950';
+}
+
+function clearParsedInput() {
+  document.getElementById('paste-alarm-text').value = '';
+  document.getElementById('parse-status').textContent = '';
+  document.getElementById('parse-status').style.color = '#8b949e';
+}
+
+function parseAlarmTextBatch(text) {
+  const lines = (text || '')
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean);
+
+  if (lines.length > 1) {
+    const multiNodeLike = lines.some(line => line.toUpperCase().startsWith('MULTI_NODE_ALARM'));
+    if (multiNodeLike) {
+      const nodes = extractNodesFromLines(lines);
+      const severity = extractSeverityFromLines(lines);
+      const context = extractContextFromLines(lines);
+      if (nodes.length) {
+        return nodes.map(node => ({
+          nodeId: node,
+          alarmType: 'MULTI_NODE_ALARM',
+          sensorValue: null,
+          unit: '',
+          context: context || `Multi-node alarm: ${nodes.join(', ')}`
+        }));
+      }
+    }
+  }
+
+  const rawBlocks = (text || '')
+    .split(/\n{2,}|\s*(?:\bnext\b|\badditional\b|\balert\b|\bincident\b)\s*/i)
+    .map(block => block.trim())
+    .filter(Boolean);
+
+  const parsedItems = rawBlocks.map(block => parseAlarmText(block)).filter(Boolean);
+  if (parsedItems.length) return parsedItems;
+
+  const single = parseAlarmText(text);
+  return single ? [single] : [];
+}
+
+function parseAlarmText(text) {
+  const normalized = (text || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return null;
+
+  const nodeId = extractNodeId(normalized);
+  const alarmType = extractAlarmType(normalized);
+  const sensorValue = extractSensorValue(normalized);
+  const unit = extractUnit(normalized);
+  const context = extractContext(normalized);
+
+  if (!nodeId && !alarmType && !sensorValue && !context) return null;
+
+  return { nodeId, alarmType, sensorValue, unit, context };
+}
+
+function extractNodeId(text) {
+  const patterns = [
+    /\b(?:node|unit|equipment|generator|turbine|sensor)\s*[:#-]\s*([A-Z]{2,5}-\d{3})\b/i,
+    /\b([A-Z]{2,5}-\d{3})\b/g
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const candidate = (match[1] || match[0]).trim().toUpperCase();
+      if (candidate && /[A-Z]{2,5}-\d{3}/.test(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractAlarmType(text) {
+  const patterns = [
+    /\balarm(?:\s+type)?\s*[:#-]\s*([A-Z0-9_]+)/i,
+    /\b(?:alarm|event)\s+([A-Z0-9_]{3,})\b/i,
+    /\b([A-Z][A-Z0-9_]{3,})\b/
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const candidate = (match[1] || '').trim().toUpperCase();
+      if (candidate && /[A-Z0-9_]/.test(candidate) && !/^GT|^FUEL|^FC|^NODE|^UNIT|^SENSOR/i.test(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractNodesFromLines(lines) {
+  const nodeMatches = [];
+  lines.forEach(line => {
+    const matches = line.match(/\b([A-Z]{2,5}-\d{3})\b/g) || [];
+    matches.forEach(match => nodeMatches.push(match.toUpperCase()));
+  });
+
+  return [...new Set(nodeMatches.filter(Boolean))];
+}
+
+function extractSeverityFromLines(lines) {
+  const severityLine = lines.find(line => /\b(low|medium|high)\b/i.test(line));
+  return severityLine ? severityLine.trim().toUpperCase() : 'LOW';
+}
+
+function extractContextFromLines(lines) {
+  const contextLine = lines.find(line => line.toLowerCase().startsWith('correlated '));
+  return contextLine ? contextLine.trim() : null;
+}
+
+function populateMultiNodeRows(items) {
+  const rows = document.getElementById('node-rows');
+  rows.innerHTML = '';
+
+  const safeItems = items.slice(0, 10);
+  safeItems.forEach((item) => {
+    addNodeRow();
+  });
+
+  const rowElements = Array.from(rows.children);
+  rowElements.forEach((row, index) => {
+    const item = safeItems[index] || safeItems[0] || {};
+    row.querySelector('.mr-node').value = item.nodeId || NODES[index % NODES.length];
+    row.querySelector('.mr-alarm').value = item.alarmType || '';
+    row.querySelector('.mr-value').value = item.sensorValue != null ? item.sensorValue : '';
+    row.querySelector('.mr-unit').value = item.unit || '';
+  });
+}
+
+function extractSensorValue(text) {
+  const patterns = [
+    /\b(?:sensor|reading|value)\s*(?:value)?\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)/i,
+    /\b([0-9]+(?:\.[0-9]+)?)\s*(?:degc|°c|mmscfd|mw|kw|psi|rpm|%)/i,
+    /\b([0-9]+(?:\.[0-9]+)?)\b/
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const candidate = parseFloat(match[1]);
+      if (!Number.isNaN(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractUnit(text) {
+  const match = text.match(/\b(degC|°C|MMSCFD|MW|KW|psi|rpm|%)\b/i);
+  return match ? match[1].toUpperCase() : null;
+}
+
+function extractContext(text) {
+  const labelMatch = text.match(/\bcontext\s*[:#-]\s*(.+)$/i);
+  if (labelMatch) return labelMatch[1].trim();
+
+  const parts = text.split(/\b(?:node|alarm|sensor|value|unit)\b/i);
+  if (parts.length > 1) {
+    const fallback = parts[parts.length - 1].trim();
+    if (fallback) return fallback;
+  }
+
+  return null;
+}
+
+async function runSingle() {
+  const payload = {
+    node_id:      document.getElementById('s-node').value,
+    alarm_type:   document.getElementById('s-alarm').value,
+    sensor_value: parseFloat(document.getElementById('s-value').value) || 0,
+    unit:         document.getElementById('s-unit').value,
+    context:      document.getElementById('s-context').value || null
+  };
+  if (!payload.alarm_type) return alert('Alarm Type is required.');
+
+  showSpinner(true);
+  try {
+    const res = await fetch('/api/investigate/single', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    currentIncidentId = res.headers.get('X-Incident-Id');
+    const data = await res.json();
+    renderSingleResult(data);
+  } catch (e) {
+    alert('Investigation failed: ' + e.message);
+  } finally {
+    showSpinner(false);
+  }
+}
+
+async function runMulti() {
+  const rows  = document.getElementById('node-rows').children;
+  const nodes = Array.from(rows).map(r => ({
+    node_id:      r.querySelector('.mr-node').value,
+    alarm_type:   r.querySelector('.mr-alarm').value,
+    sensor_value: parseFloat(r.querySelector('.mr-value').value) || 0,
+    unit:         r.querySelector('.mr-unit').value
+  }));
+
+  if (nodes.some(n => !n.alarm_type)) return alert('All nodes require an Alarm Type.');
+
+  const payload = {
+    region_context: document.getElementById('m-context').value || null,
+    nodes
+  };
+
+  showSpinner(true);
+  try {
+    const res = await fetch('/api/investigate/multinode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    currentIncidentId = res.headers.get('X-Incident-Id');
+    const data = await res.json();
+    renderMultiResult(data);
+  } catch (e) {
+    alert('Investigation failed: ' + e.message);
+  } finally {
+    showSpinner(false);
+  }
+}
+
+function renderSingleResult(d) {
+  const sev   = d.severity || 'LOW';
+  const tools = (d.tools_invoked || []).map(t => `<span class="chip">${t}</span>`).join('');
+  document.getElementById('inv-result').innerHTML = `
+    <div class="result-card ${sev}">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+        <span class="badge ${sev}">${sev}</span>
+        <span style="font-weight:600;font-size:.9rem;">${d.node_id}</span>
+        <span style="font-size:.75rem;color:#8b949e;margin-left:auto;">${d.iterations} iterations</span>
+      </div>
+      <div style="font-size:.83rem;margin-bottom:8px;">${d.conclusion}</div>
+      <div style="font-size:.82rem;color:#3fb950;margin-bottom:10px;">→ ${d.recommended_action}</div>
+      <div>${tools}</div>
+    </div>`;
+  document.getElementById('inv-result').style.display = 'block';
+  openChat();
+}
+
+function renderMultiResult(d) {
+  const sev      = d.overall_severity || 'LOW';
+  const perNode  = (d.node_results || []).map(r => `
+    <div style="display:flex;gap:8px;align-items:baseline;padding:6px 0;border-bottom:1px solid #30363d;">
+      <span class="badge ${r.severity}">${r.severity}</span>
+      <span style="font-weight:600;font-size:.82rem;min-width:70px;">${r.node_id}</span>
+      <span style="font-size:.8rem;color:#8b949e;flex:1;">${r.conclusion}</span>
+    </div>`).join('');
+
+  document.getElementById('inv-result').innerHTML = `
+    <div class="result-card ${sev}">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+        <span class="badge ${sev}">${sev}</span>
+        <span style="font-weight:600;font-size:.9rem;">Multi-Node Investigation</span>
+      </div>
+      <div style="margin-bottom:8px;">
+        <span style="font-size:.7rem;color:#8b949e;text-transform:uppercase;letter-spacing:.4px;">Root Cause</span>
+        <div style="font-size:.83rem;margin-top:3px;">${d.root_cause_hypothesis}</div>
+      </div>
+      <div style="margin-bottom:8px;">
+        <span style="font-size:.7rem;color:#8b949e;text-transform:uppercase;letter-spacing:.4px;">Correlation</span>
+        <div style="font-size:.83rem;margin-top:3px;color:#8b949e;">${d.correlation_summary}</div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <span style="font-size:.7rem;color:#8b949e;text-transform:uppercase;letter-spacing:.4px;">Recommended Action</span>
+        <div style="font-size:.82rem;color:#3fb950;margin-top:3px;">→ ${d.recommended_action}</div>
+      </div>
+      <div style="font-size:.7rem;color:#8b949e;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Per-Node Results</div>
+      ${perNode}
+    </div>`;
+  document.getElementById('inv-result').style.display = 'block';
+  openChat();
+}
+
+function openChat() {
+  document.getElementById('chat-panel').style.display = 'block';
+  document.getElementById('chat-history').innerHTML   = '';
+  appendBubble('assistant', 'Understood. I have reviewed the investigation findings. What would you like to know?');
+}
+
+function appendBubble(role, text) {
+  const hist = document.getElementById('chat-history');
+  const wrap = document.createElement('div');
+  wrap.style.display       = 'flex';
+  wrap.style.flexDirection = 'column';
+  wrap.style.alignItems    = role === 'user' ? 'flex-end' : 'flex-start';
+  wrap.innerHTML = `
+    <div class="chat-label">${role === 'user' ? 'Operator' : 'AI'}</div>
+    <div class="chat-bubble ${role}">${text.replace(/\n/g, '<br>')}</div>`;
+  hist.appendChild(wrap);
+  hist.scrollTop = hist.scrollHeight;
+}
+
+function chatKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+}
+
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const msg   = input.value.trim();
+  if (!msg || !currentIncidentId) return;
+
+  appendBubble('user', msg);
+  input.value = '';
+
+  try {
+    const res = await fetch(`/api/incidents/${currentIncidentId}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg })
+    });
+    const data = await res.json();
+    appendBubble('assistant', data.reply);
+  } catch (e) {
+    appendBubble('assistant', 'Error: ' + e.message);
+  }
+}
+
+async function clearChat() {
+  if (!currentIncidentId) return;
+  await fetch(`/api/incidents/${currentIncidentId}`, { method: 'DELETE' });
+  document.getElementById('chat-history').innerHTML = '';
+  document.getElementById('chat-panel').style.display = 'none';
+  currentIncidentId = null;
+}
+
+function showSpinner(show) {
+  document.getElementById('inv-spinner').style.display = show ? '' : 'none';
+  document.querySelectorAll('.inv-btn').forEach(b => b.disabled = show);
+}
 </script>
 </body>
 </html>
