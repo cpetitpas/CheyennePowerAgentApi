@@ -22,7 +22,7 @@ All generation data calls go through `ToolExecutor`, which provides per-attempt 
 
 ```bash
 cd src/CheyennePowerAgentApi
-dotnet run
+dotnet run --project src/CheyennePowerAgentApi 
 ```
 
 Open `http://localhost:5255` in a browser to view the operations dashboard.
