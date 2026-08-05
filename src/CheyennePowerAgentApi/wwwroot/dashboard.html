@@ -148,6 +148,14 @@
   .event-analysis { font-size: 0.81rem; color: #8b949e; margin-top: 3px; }
   .event-action   { font-size: 0.81rem; color: #e6edf3;  margin-top: 2px; }
 
+  .copy-btn {
+    margin-left: 6px; padding: 1px 7px; border-radius: 4px;
+    border: 1px solid #30363d; background: #21262d;
+    color: #8b949e; cursor: pointer; font-size: 0.72rem;
+    line-height: 1.4;
+  }
+  .copy-btn:hover { background: #388bfd22; color: #388bfd; border-color: #388bfd; }
+
   /* ── Actions sidebar ── */
   .actions-panel {
     background: #161b22; border: 1px solid #30363d; border-radius: 8px;
@@ -325,9 +333,9 @@
     <label class="field-label">Paste alarm text from the Live Feed</label>
     <textarea id="paste-alarm-text" rows="4" class="field-input" placeholder="Example: Node: GT-001 | Alarm: HIGH_EXHAUST_TEMP | Sensor value: 650 degC | Context: Unit 1 running at 85% load"></textarea>
     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
-      <button class="filter-btn" onclick="parseAlarmTextFromInput()">Parse Alarm</button>
+      <button class="filter-btn" id="btn-parse-single" onclick="parseAlarmTextFromInput()">Parse Alarm</button>
       <button class="filter-btn" onclick="clearParsedInput()">Clear</button>
-      <button class="filter-btn" onclick="setMode('multi'); parseAlarmTextFromInput(true)">Parse into Multi Node</button>
+      <button class="filter-btn" id="btn-parse-multi" onclick="setMode('multi'); parseAlarmTextFromInput(true)">Parse into Multi Node</button>
     </div>
     <div id="parse-status" style="margin-top:8px;font-size:.75rem;color:#8b949e;"></div>
   </div>
@@ -563,9 +571,14 @@ function makeCard(ev) {
   card.dataset.unit        = ev.unit        ?? '';
   card.dataset.eventType   = ev.event_type;
 
+  // Store event index for copy button
+  const evIndex = allEvents.length; // will be unshifted, so use timestamp as key
+  const evKey   = ev.timestamp;
+
   const nodesDisplay = ev.nodes && ev.nodes.length
     ? `<div class="event-meta">Nodes: ${esc(ev.nodes.join(', '))}</div>`
     : '';
+
   card.innerHTML = `
     <div class="event-header">
       <span class="badge ${ev.event_type}">${ev.event_type}</span>
@@ -573,11 +586,30 @@ function makeCard(ev) {
       <span class="badge ${ev.severity}">${ev.severity}</span>
       ${variance}
       <span class="event-time">${time}</span>
+      <button class="copy-btn" onclick="copyEventToInvestigate('${esc(evKey)}')" title="Copy to Investigate">⎘</button>
     </div>
     <div class="event-analysis">${esc(ev.analysis)}</div>
     ${nodesDisplay}
     <div class="event-action">→ ${esc(ev.action)}</div>`;
   return card;
+}
+
+function copyEventToInvestigate(timestamp) {
+  const ev = allEvents.find(e => e.timestamp === timestamp);
+  if (!ev) return;
+
+  const text = `${ev.event_type} ${ev.node_id} ${ev.severity}\n${ev.analysis}\n→ ${ev.action}`;
+  document.getElementById('paste-alarm-text').value = text;
+  document.getElementById('parse-status').textContent = '';
+
+  // Clear previous node rows before setting mode
+  document.getElementById('node-rows').innerHTML = '';
+
+  const isMulti = ev.event_type === 'MULTI_NODE_ALARM';
+  setMode(isMulti ? 'multi' : 'single');
+
+  const invTab = document.querySelector('[onclick="switchTab(\'investigate\',this)"]');
+  switchTab('investigate', invTab);
 }
 
 function rerenderList() {
@@ -754,6 +786,8 @@ function setMode(mode) {
   document.getElementById('form-multi').style.display  = mode === 'multi'  ? '' : 'none';
   document.getElementById('mode-single').classList.toggle('active', mode === 'single');
   document.getElementById('mode-multi').classList.toggle('active', mode === 'multi');
+  document.getElementById('btn-parse-single').style.display = mode === 'single' ? '' : 'none';
+  document.getElementById('btn-parse-multi').style.display  = mode === 'multi'  ? '' : 'none';
   document.getElementById('inv-result').style.display  = 'none';
   document.getElementById('chat-panel').style.display  = 'none';
   if (mode === 'multi' && document.getElementById('node-rows').children.length === 0) {
@@ -812,6 +846,20 @@ function parseAlarmTextFromInput(forMulti = false) {
     return;
   }
 
+  // Check if pasted text is a DISPATCH event
+  if (raw.toUpperCase().includes('DISPATCH')) {
+    status.innerHTML = '⚡ DISPATCH events are informational — they report generation gap status, not alarms. ' +
+      'To investigate the affected generator, select the node manually from the form below.';
+    status.style.color = '#d29922';
+    // Pre-select the node in the single form if we can find it
+    const nodeMatch = raw.match(/\b([A-Z]{2,5}-\d{3})\b/);
+    if (nodeMatch && NODES.includes(nodeMatch[1])) {
+      document.getElementById('s-node').value = nodeMatch[1];
+      setMode('single');
+    }
+    return;
+  }
+
   const items = extractFromEvents(raw) || extractFromText(raw);
 
   if (!items || !items.length) {
@@ -838,26 +886,43 @@ function parseAlarmTextFromInput(forMulti = false) {
 }
 
 function extractFromEvents(text) {
-  // Match pasted text against stored events by looking for node ID + analysis substring
-  const nodeMatch = text.match(/\b([A-Z]{2,5}-\d{3})\b/);
-  if (!nodeMatch) return null;
+  const nodeMatches = [...text.matchAll(/\b([A-Z]{2,5}-\d{3})\b/g)]
+    .map(m => m[1])
+    .filter((v, i, a) => a.indexOf(v) === i);
 
-  const nodeId = nodeMatch[1];
-  const matches = allEvents.filter(ev => ev.node_id === nodeId);
-  if (!matches.length) return null;
+  if (!nodeMatches.length) return null;
 
-  // If multiple events for this node, pick the one whose analysis appears in the pasted text
-  const best = matches.find(ev => ev.analysis && text.includes(ev.analysis.slice(0, 40)))
-            ?? matches[0];
+  // Multi-node alarm — all nodes share the same correlated event, no sensor data
+  if (text.toUpperCase().includes('MULTI_NODE_ALARM')) {
+    return nodeMatches.map(nodeId => ({
+      nodeId,
+      alarmType:   'MULTI_NODE_ALARM',
+      sensorValue: null,
+      unit:        ''
+    }));
+  }
 
-  if (!best.alarm_type) return null;
+  // Single-node — look up structured data from allEvents
+  const items = nodeMatches
+    .map(nodeId => {
+      const candidates = allEvents.filter(ev => ev.node_id === nodeId);
+      if (!candidates.length) return null;
 
-  return [{
-    nodeId:      best.node_id,
-    alarmType:   best.alarm_type,
-    sensorValue: best.sensor_value,
-    unit:        best.unit
-  }];
+      const best = candidates.find(ev => ev.analysis && text.includes(ev.analysis.slice(0, 40)))
+                ?? candidates[0];
+
+      if (!best.alarm_type) return null;
+
+      return {
+        nodeId:      best.node_id,
+        alarmType:   best.alarm_type,
+        sensorValue: best.sensor_value,
+        unit:        best.unit
+      };
+    })
+    .filter(Boolean);
+
+  return items.length ? items : null;
 }
 
 function extractFromText(text) {
