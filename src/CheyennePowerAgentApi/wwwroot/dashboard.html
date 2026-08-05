@@ -557,6 +557,12 @@ function makeCard(ev) {
 
   const card = document.createElement('div');
   card.className = `event-card ${ev.severity}`;
+  card.dataset.nodeId      = ev.node_id;
+  card.dataset.alarmType   = ev.alarm_type  ?? '';
+  card.dataset.sensorValue = ev.sensor_value ?? '';
+  card.dataset.unit        = ev.unit        ?? '';
+  card.dataset.eventType   = ev.event_type;
+
   const nodesDisplay = ev.nodes && ev.nodes.length
     ? `<div class="event-meta">Nodes: ${esc(ev.nodes.join(', '))}</div>`
     : '';
@@ -603,14 +609,17 @@ let es = null;
 function normalizeEvent(raw) {
   return {
     ...raw,
-    event_type: String(raw.event_type ?? raw.eventType ?? 'UNKNOWN').toUpperCase(),
-    node_id: String(raw.node_id ?? raw.nodeId ?? 'UNKNOWN'),
-    severity: String(raw.severity ?? 'LOW').toUpperCase(),
-    analysis: raw.analysis ?? '',
-    action: raw.action ?? '',
-    variance: raw.variance ?? null,
-    nodes: Array.isArray(raw.nodes) ? raw.nodes : [],
-    timestamp: raw.timestamp ?? new Date().toISOString()
+    event_type:   String(raw.event_type   ?? raw.eventType   ?? 'UNKNOWN').toUpperCase(),
+    node_id:      String(raw.node_id      ?? raw.nodeId      ?? 'UNKNOWN'),
+    severity:     String(raw.severity     ?? 'LOW').toUpperCase(),
+    analysis:     raw.analysis            ?? '',
+    action:       raw.action              ?? '',
+    variance:     raw.variance            ?? null,
+    alarm_type:   raw.alarm_type          ?? raw.alarmType   ?? '',
+    sensor_value: raw.sensor_value        ?? raw.sensorValue ?? null,
+    unit:         raw.unit                ?? '',
+    nodes:        Array.isArray(raw.nodes) ? raw.nodes : [],
+    timestamp:    raw.timestamp           ?? new Date().toISOString()
   };
 }
 
@@ -789,212 +798,98 @@ function removeNodeRow() {
   if (rows.children.length > 2) rows.removeChild(rows.lastChild);
 }
 
+// ── Parse alarm ────────────────────────────────────────────────────────────
+// Primary path: read structured data from allEvents by matching pasted text.
+// Fallback: regex extraction from raw text for manually typed input.
+
 function parseAlarmTextFromInput(forMulti = false) {
-  const raw = document.getElementById('paste-alarm-text').value || '';
+  const raw    = document.getElementById('paste-alarm-text').value.trim();
   const status = document.getElementById('parse-status');
 
-  if (!raw.trim()) {
+  if (!raw) {
     status.textContent = 'Paste alarm text first.';
     status.style.color = '#f85149';
     return;
   }
 
-  const parsedItems = parseAlarmTextBatch(raw);
+  const items = extractFromEvents(raw) || extractFromText(raw);
 
-  if (!parsedItems.length) {
-    status.textContent = 'No recognizable alarm data was found. Try pasting the alarm text exactly as it appears in the Live Feed.';
+  if (!items || !items.length) {
+    status.textContent = 'No recognizable alarm data found. Paste the event card text exactly as it appears in the Live Feed.';
     status.style.color = '#f85149';
     return;
   }
 
   if (forMulti) {
     setMode('multi');
-    populateMultiNodeRows(parsedItems);
+    populateMultiNodeRows(items);
   } else {
-    const first = parsedItems[0];
-    document.getElementById('s-node').value = first.nodeId || document.getElementById('s-node').value;
-    document.getElementById('s-alarm').value = first.alarmType || '';
+    const first = items[0];
+    const sel = document.getElementById('s-node');
+    if (first.nodeId && NODES.includes(first.nodeId)) sel.value = first.nodeId;
+    document.getElementById('s-alarm').value = first.alarmType   ?? '';
     document.getElementById('s-value').value = first.sensorValue ?? '';
-    document.getElementById('s-unit').value = first.unit || '';
-    document.getElementById('s-context').value = first.context || '';
+    document.getElementById('s-unit').value  = first.unit        ?? '';
+    document.getElementById('s-context').value = '';
   }
 
-  const countLabel = parsedItems.length > 1 ? `${parsedItems.length} entries` : '1 entry';
-  status.textContent = `Parsed ${countLabel} from the pasted text.`;
+  status.textContent = `Parsed ${items.length} item${items.length > 1 ? 's' : ''}.`;
   status.style.color = '#3fb950';
+}
+
+function extractFromEvents(text) {
+  // Match pasted text against stored events by looking for node ID + analysis substring
+  const nodeMatch = text.match(/\b([A-Z]{2,5}-\d{3})\b/);
+  if (!nodeMatch) return null;
+
+  const nodeId = nodeMatch[1];
+  const matches = allEvents.filter(ev => ev.node_id === nodeId);
+  if (!matches.length) return null;
+
+  // If multiple events for this node, pick the one whose analysis appears in the pasted text
+  const best = matches.find(ev => ev.analysis && text.includes(ev.analysis.slice(0, 40)))
+            ?? matches[0];
+
+  if (!best.alarm_type) return null;
+
+  return [{
+    nodeId:      best.node_id,
+    alarmType:   best.alarm_type,
+    sensorValue: best.sensor_value,
+    unit:        best.unit
+  }];
+}
+
+function extractFromText(text) {
+  // Fallback: regex for manually typed structured input
+  // Expects format like: Node: GT-001 | Alarm: HIGH_EXHAUST_TEMP | Sensor value: 650 degC
+  const nodeId = (text.match(/\b([A-Z]{2,5}-\d{3})\b/) ?? [])[1] ?? null;
+  const alarmType = (text.match(/alarm[^:]*:\s*([A-Z0-9_]+)/i) ?? [])[1] ?? null;
+  const valueUnit = text.match(/([0-9]+(?:\.[0-9]+)?)\s*([A-Za-z/%]+)/);
+  const sensorValue = valueUnit ? parseFloat(valueUnit[1]) : null;
+  const unit = valueUnit ? valueUnit[2].toUpperCase() : null;
+
+  if (!nodeId && !alarmType) return null;
+  return [{ nodeId, alarmType, sensorValue, unit }];
 }
 
 function clearParsedInput() {
   document.getElementById('paste-alarm-text').value = '';
   document.getElementById('parse-status').textContent = '';
-  document.getElementById('parse-status').style.color = '#8b949e';
-}
-
-function parseAlarmTextBatch(text) {
-  const lines = (text || '')
-    .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(Boolean);
-
-  if (lines.length > 1) {
-    const multiNodeLike = lines.some(line => line.toUpperCase().startsWith('MULTI_NODE_ALARM'));
-    if (multiNodeLike) {
-      const nodes = extractNodesFromLines(lines);
-      const severity = extractSeverityFromLines(lines);
-      const context = extractContextFromLines(lines);
-      if (nodes.length) {
-        return nodes.map(node => ({
-          nodeId: node,
-          alarmType: 'MULTI_NODE_ALARM',
-          sensorValue: null,
-          unit: '',
-          context: context || `Multi-node alarm: ${nodes.join(', ')}`
-        }));
-      }
-    }
-  }
-
-  const rawBlocks = (text || '')
-    .split(/\n{2,}|\s*(?:\bnext\b|\badditional\b|\balert\b|\bincident\b)\s*/i)
-    .map(block => block.trim())
-    .filter(Boolean);
-
-  const parsedItems = rawBlocks.map(block => parseAlarmText(block)).filter(Boolean);
-  if (parsedItems.length) return parsedItems;
-
-  const single = parseAlarmText(text);
-  return single ? [single] : [];
-}
-
-function parseAlarmText(text) {
-  const normalized = (text || '').replace(/\s+/g, ' ').trim();
-  if (!normalized) return null;
-
-  const nodeId = extractNodeId(normalized);
-  const alarmType = extractAlarmType(normalized);
-  const sensorValue = extractSensorValue(normalized);
-  const unit = extractUnit(normalized);
-  const context = extractContext(normalized);
-
-  if (!nodeId && !alarmType && !sensorValue && !context) return null;
-
-  return { nodeId, alarmType, sensorValue, unit, context };
-}
-
-function extractNodeId(text) {
-  const patterns = [
-    /\b(?:node|unit|equipment|generator|turbine|sensor)\s*[:#-]\s*([A-Z]{2,5}-\d{3})\b/i,
-    /\b([A-Z]{2,5}-\d{3})\b/g
-  ];
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match) {
-      const candidate = (match[1] || match[0]).trim().toUpperCase();
-      if (candidate && /[A-Z]{2,5}-\d{3}/.test(candidate)) {
-        return candidate;
-      }
-    }
-  }
-
-  return null;
-}
-
-function extractAlarmType(text) {
-  const patterns = [
-    /\balarm(?:\s+type)?\s*[:#-]\s*([A-Z0-9_]+)/i,
-    /\b(?:alarm|event)\s+([A-Z0-9_]{3,})\b/i,
-    /\b([A-Z][A-Z0-9_]{3,})\b/
-  ];
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match) {
-      const candidate = (match[1] || '').trim().toUpperCase();
-      if (candidate && /[A-Z0-9_]/.test(candidate) && !/^GT|^FUEL|^FC|^NODE|^UNIT|^SENSOR/i.test(candidate)) {
-        return candidate;
-      }
-    }
-  }
-
-  return null;
-}
-
-function extractNodesFromLines(lines) {
-  const nodeMatches = [];
-  lines.forEach(line => {
-    const matches = line.match(/\b([A-Z]{2,5}-\d{3})\b/g) || [];
-    matches.forEach(match => nodeMatches.push(match.toUpperCase()));
-  });
-
-  return [...new Set(nodeMatches.filter(Boolean))];
-}
-
-function extractSeverityFromLines(lines) {
-  const severityLine = lines.find(line => /\b(low|medium|high)\b/i.test(line));
-  return severityLine ? severityLine.trim().toUpperCase() : 'LOW';
-}
-
-function extractContextFromLines(lines) {
-  const contextLine = lines.find(line => line.toLowerCase().startsWith('correlated '));
-  return contextLine ? contextLine.trim() : null;
 }
 
 function populateMultiNodeRows(items) {
   const rows = document.getElementById('node-rows');
   rows.innerHTML = '';
-
-  const safeItems = items.slice(0, 10);
-  safeItems.forEach((item) => {
-    addNodeRow();
+  items.slice(0, 10).forEach(() => addNodeRow());
+  Array.from(rows.children).forEach((row, i) => {
+    const item = items[i] ?? items[0];
+    if (item.nodeId && NODES.includes(item.nodeId))
+      row.querySelector('.mr-node').value = item.nodeId;
+    row.querySelector('.mr-alarm').value = item.alarmType   ?? '';
+    row.querySelector('.mr-value').value = item.sensorValue ?? '';
+    row.querySelector('.mr-unit').value  = item.unit        ?? '';
   });
-
-  const rowElements = Array.from(rows.children);
-  rowElements.forEach((row, index) => {
-    const item = safeItems[index] || safeItems[0] || {};
-    row.querySelector('.mr-node').value = item.nodeId || NODES[index % NODES.length];
-    row.querySelector('.mr-alarm').value = item.alarmType || '';
-    row.querySelector('.mr-value').value = item.sensorValue != null ? item.sensorValue : '';
-    row.querySelector('.mr-unit').value = item.unit || '';
-  });
-}
-
-function extractSensorValue(text) {
-  const patterns = [
-    /\b(?:sensor|reading|value)\s*(?:value)?\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)/i,
-    /\b([0-9]+(?:\.[0-9]+)?)\s*(?:degc|°c|mmscfd|mw|kw|psi|rpm|%)/i,
-    /\b([0-9]+(?:\.[0-9]+)?)\b/
-  ];
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match) {
-      const candidate = parseFloat(match[1]);
-      if (!Number.isNaN(candidate)) {
-        return candidate;
-      }
-    }
-  }
-
-  return null;
-}
-
-function extractUnit(text) {
-  const match = text.match(/\b(degC|°C|MMSCFD|MW|KW|psi|rpm|%)\b/i);
-  return match ? match[1].toUpperCase() : null;
-}
-
-function extractContext(text) {
-  const labelMatch = text.match(/\bcontext\s*[:#-]\s*(.+)$/i);
-  if (labelMatch) return labelMatch[1].trim();
-
-  const parts = text.split(/\b(?:node|alarm|sensor|value|unit)\b/i);
-  if (parts.length > 1) {
-    const fallback = parts[parts.length - 1].trim();
-    if (fallback) return fallback;
-  }
-
-  return null;
 }
 
 async function runSingle() {
