@@ -427,6 +427,7 @@
 
 <script>
 // ── State ──────────────────────────────────────────────────────────────────
+let eventCounter = 0;
 let allEvents  = [];
 let filter     = 'ALL';
 let paused     = false;
@@ -477,6 +478,7 @@ function togglePause() {
 
 // ── Ingest ─────────────────────────────────────────────────────────────────
 function ingestEvent(ev) {
+  ev._id = ++eventCounter;
   allEvents.unshift(ev);
 
   // counters
@@ -581,21 +583,21 @@ function makeCard(ev) {
 
   card.innerHTML = `
     <div class="event-header">
-      <span class="badge ${ev.event_type}">${ev.event_type}</span>
-      <span class="event-node">${esc(ev.node_id)}</span>
-      <span class="badge ${ev.severity}">${ev.severity}</span>
-      ${variance}
-      <span class="event-time">${time}</span>
-      <button class="copy-btn" onclick="copyEventToInvestigate('${esc(evKey)}')" title="Copy to Investigate">⎘</button>
-    </div>
-    <div class="event-analysis">${esc(ev.analysis)}</div>
-    ${nodesDisplay}
-    <div class="event-action">→ ${esc(ev.action)}</div>`;
+    <span class="badge ${ev.event_type}">${ev.event_type}</span>
+    <span class="event-node">${esc(ev.node_id)}</span>
+    <span class="badge ${ev.severity}">${ev.severity}</span>
+    ${variance}
+    <span class="event-time">${time}</span>
+    <button class="copy-btn" onclick="copyEventToInvestigate(${ev._id})" title="Copy to Investigate">⎘</button>
+  </div>
+  <div class="event-analysis">${esc(ev.analysis)}</div>
+  ${nodesDisplay}
+  <div class="event-action">→ ${esc(ev.action)}</div>`;
   return card;
 }
 
-function copyEventToInvestigate(timestamp) {
-  const ev = allEvents.find(e => e.timestamp === timestamp);
+function copyEventToInvestigate(id) {
+  const ev = allEvents.find(e => e._id === id);
   if (!ev) return;
 
   const text = `${ev.event_type} ${ev.node_id} ${ev.severity}\n${ev.analysis}\n→ ${ev.action}`;
@@ -779,6 +781,7 @@ let currentMode      = 'single';
 let currentIncidentId = null;
 
 function setMode(mode) {
+  const modeChanged = mode !== currentMode;
   currentMode = mode;
   document.getElementById('form-single').style.display = mode === 'single' ? '' : 'none';
   document.getElementById('form-multi').style.display  = mode === 'multi'  ? '' : 'none';
@@ -786,8 +789,10 @@ function setMode(mode) {
   document.getElementById('mode-multi').classList.toggle('active', mode === 'multi');
   document.getElementById('btn-parse-single').style.display = mode === 'single' ? '' : 'none';
   document.getElementById('btn-parse-multi').style.display  = mode === 'multi'  ? '' : 'none';
-  document.getElementById('inv-result').style.display  = 'none';
-  document.getElementById('chat-panel').style.display  = 'none';
+  if (modeChanged) {
+    document.getElementById('inv-result').style.display = 'none';
+    document.getElementById('chat-panel').style.display = 'none';
+  }
   if (mode === 'multi' && document.getElementById('node-rows').children.length === 0) {
     addNodeRow(); addNodeRow();
   }
