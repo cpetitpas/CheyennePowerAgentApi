@@ -601,8 +601,6 @@ function copyEventToInvestigate(timestamp) {
   const text = `${ev.event_type} ${ev.node_id} ${ev.severity}\n${ev.analysis}\n→ ${ev.action}`;
   document.getElementById('paste-alarm-text').value = text;
   document.getElementById('parse-status').textContent = '';
-
-  // Clear previous node rows before setting mode
   document.getElementById('node-rows').innerHTML = '';
 
   const isMulti = ev.event_type === 'MULTI_NODE_ALARM';
