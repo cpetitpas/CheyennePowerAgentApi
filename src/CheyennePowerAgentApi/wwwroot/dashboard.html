@@ -679,6 +679,16 @@ function connect() {
 
 connect();
 
+// ── Auto-pause on scroll ───────────────────────────────────────────────────
+document.getElementById('event-list').addEventListener('scroll', function() {
+  if (this.scrollTop > 50 && !paused) {
+    togglePause();
+    document.getElementById('pause-btn').textContent = '▶ Resume (auto-paused)';
+  } else if (this.scrollTop === 0 && paused) {
+    togglePause();
+  }
+});
+
 // ── HTML escape helper (prevents XSS when rendering API-sourced strings) ───
 function esc(s) {
   const d = document.createElement('div');
@@ -850,7 +860,7 @@ function parseAlarmTextFromInput(forMulti = false) {
   }
 
   // Check if pasted text is a DISPATCH event
-  if (raw.toUpperCase().includes('DISPATCH')) {
+  if (/^DISPATCH\b/i.test(raw)) {
     status.innerHTML = '⚡ DISPATCH events are informational — they report generation gap status, not alarms. ' +
       'To investigate the affected generator, select the node manually from the form below.';
     status.style.color = '#d29922';
