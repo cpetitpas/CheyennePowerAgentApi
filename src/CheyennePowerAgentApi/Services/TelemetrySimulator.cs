@@ -170,12 +170,15 @@ public class TelemetrySimulator : BackgroundService
 
         return new TelemetryEvent
         {
-            EventType = "FUEL_CELL_ALARM",
-            NodeId    = nodeId,
-            Severity  = parsed?.Severity ?? "LOW",
-            Analysis  = parsed?.Analysis ?? raw,
-            Action    = parsed?.Action   ?? string.Empty,
-            Timestamp = DateTime.UtcNow
+            EventType   = "FUEL_CELL_ALARM",
+            NodeId      = nodeId,
+            Severity    = parsed?.Severity ?? "LOW",
+            Analysis    = parsed?.Analysis ?? raw,
+            Action      = parsed?.Action   ?? string.Empty,
+            AlarmType   = alarmType,
+            SensorValue = sensorValue,
+            Unit        = unit,
+            Timestamp   = DateTime.UtcNow
         };
     }
 
@@ -212,12 +215,15 @@ public class TelemetrySimulator : BackgroundService
 
         return new TelemetryEvent
         {
-            EventType = "TURBINE_ALARM",
-            NodeId    = nodeId,
-            Severity  = parsed?.Severity ?? "LOW",
-            Analysis  = parsed?.Analysis ?? raw,
-            Action    = parsed?.Action   ?? string.Empty,
-            Timestamp = DateTime.UtcNow
+            EventType   = "TURBINE_ALARM",
+            NodeId      = nodeId,
+            Severity    = parsed?.Severity ?? "LOW",
+            Analysis    = parsed?.Analysis ?? raw,
+            Action      = parsed?.Action   ?? string.Empty,
+            AlarmType   = alarmType,
+            SensorValue = sensorValue,
+            Unit        = unit,
+            Timestamp   = DateTime.UtcNow
         };
     }
 
@@ -310,13 +316,16 @@ public class TelemetrySimulator : BackgroundService
 
         return new TelemetryEvent
         {
-            EventType = "FLOW",
-            NodeId    = nodeId,
-            Severity  = NormalizeSeverity(parsed?.Severity) ?? computedSeverity,
-            Analysis  = parsed?.Analysis ?? raw,
-            Action    = parsed?.Action   ?? string.Empty,
-            Variance  = computedVariance,
-            Timestamp = DateTime.UtcNow
+            EventType   = "FLOW",
+            NodeId      = nodeId,
+            Severity    = NormalizeSeverity(parsed?.Severity) ?? computedSeverity,
+            Analysis    = parsed?.Analysis ?? raw,
+            Action      = parsed?.Action   ?? string.Empty,
+            Variance    = computedVariance,
+            AlarmType   = "FLOW_ANALYSIS",
+            SensorValue = flowRate,
+            Unit        = unit,
+            Timestamp   = DateTime.UtcNow
         };
     }
 
