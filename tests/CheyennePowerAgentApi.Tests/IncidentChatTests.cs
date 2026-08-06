@@ -20,7 +20,7 @@ public class IncidentChatTests : IClassFixture<WebApplicationFactory<Program>>
             {
                 var chat = services.SingleOrDefault(d => d.ServiceType == typeof(IChatService));
                 if (chat != null) services.Remove(chat);
-                services.AddScoped<IChatService, FakeChatService>();
+                services.AddSingleton<IChatService, FakeChatService>();
             });
         }).CreateClient();
     }

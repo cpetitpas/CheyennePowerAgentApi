@@ -29,8 +29,16 @@ public abstract class TestBase : IClassFixture<WebApplicationFactory<Program>>
                     services.Remove(descriptor);
 
                 services.AddScoped<IClaudeService, FakeClaudeService>();
+
+                // Allow derived tests to configure additional services
+                ConfigureAdditionalServices(services);
             });
         }).CreateClient();
+    }
+
+    // Override in derived test classes to tweak service registrations
+    protected virtual void ConfigureAdditionalServices(IServiceCollection services)
+    {
     }
 
     protected async Task<HttpResponseMessage> PostAsync(string url, object body)

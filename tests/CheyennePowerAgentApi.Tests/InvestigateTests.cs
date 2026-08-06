@@ -8,31 +8,27 @@ using Xunit;
 
 namespace CheyennePowerAgentApi.Tests;
 
-public class InvestigateTests : IClassFixture<WebApplicationFactory<Program>>
+public class InvestigateTests : TestBase
 {
-    private readonly HttpClient _client;
-
-    public InvestigateTests(WebApplicationFactory<Program> factory)
+    public InvestigateTests(WebApplicationFactory<Program> factory) : base(factory)
     {
-        _client = factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                // Replace InvestigateService and MultiNodeInvestigateService
-                // with fakes that don't call Anthropic
-                var inv = services.SingleOrDefault(d => d.ServiceType == typeof(IInvestigateService));
-                if (inv != null) services.Remove(inv);
-                services.AddScoped<IInvestigateService, FakeInvestigateService>();
+    }
 
-                var multi = services.SingleOrDefault(d => d.ServiceType == typeof(IMultiNodeInvestigateService));
-                if (multi != null) services.Remove(multi);
-                services.AddScoped<IMultiNodeInvestigateService, FakeMultiNodeInvestigateService>();
+    protected override void ConfigureAdditionalServices(IServiceCollection services)
+    {
+        // Replace InvestigateService and MultiNodeInvestigateService
+        // with fakes that don't call Anthropic
+        var inv = services.SingleOrDefault(d => d.ServiceType == typeof(IInvestigateService));
+        if (inv != null) services.Remove(inv);
+        services.AddScoped<IInvestigateService, FakeInvestigateService>();
 
-                var chat = services.SingleOrDefault(d => d.ServiceType == typeof(IChatService));
-                if (chat != null) services.Remove(chat);
-                services.AddScoped<IChatService, FakeChatService>();
-            });
-        }).CreateClient();
+        var multi = services.SingleOrDefault(d => d.ServiceType == typeof(IMultiNodeInvestigateService));
+        if (multi != null) services.Remove(multi);
+        services.AddScoped<IMultiNodeInvestigateService, FakeMultiNodeInvestigateService>();
+
+        var chat = services.SingleOrDefault(d => d.ServiceType == typeof(IChatService));
+        if (chat != null) services.Remove(chat);
+        services.AddScoped<IChatService, FakeChatService>();
     }
 
     // ── Single node ──────────────────────────────────────────────────────
@@ -40,8 +36,7 @@ public class InvestigateTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task Single_Returns200_WithValidRequest()
     {
-        var response = await _client.PostAsJsonAsync("/api/investigate/single",
-            ValidSingleRequest());
+        var response = await PostAsync("/api/investigate/single", ValidSingleRequest());
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var result = await response.Content.ReadFromJsonAsync<InvestigateResponse>(TestBase.JsonOpts);
@@ -55,7 +50,7 @@ public class InvestigateTests : IClassFixture<WebApplicationFactory<Program>>
     {
         var req = ValidSingleRequest();
         req.NodeId = "";
-        var response = await _client.PostAsJsonAsync("/api/investigate/single", req);
+        var response = await PostAsync("/api/investigate/single", req);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
@@ -64,15 +59,14 @@ public class InvestigateTests : IClassFixture<WebApplicationFactory<Program>>
     {
         var req = ValidSingleRequest();
         req.AlarmType = "";
-        var response = await _client.PostAsJsonAsync("/api/investigate/single", req);
+        var response = await PostAsync("/api/investigate/single", req);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
     public async Task Single_ReturnsIncidentIdHeader()
     {
-        var response = await _client.PostAsJsonAsync("/api/investigate/single",
-            ValidSingleRequest());
+        var response = await PostAsync("/api/investigate/single", ValidSingleRequest());
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(response.Headers.Contains("X-Incident-Id"));
         Assert.False(string.IsNullOrWhiteSpace(
@@ -84,8 +78,7 @@ public class InvestigateTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task MultiNode_Returns200_WithValidRequest()
     {
-        var response = await _client.PostAsJsonAsync("/api/investigate/multinode",
-            ValidMultiRequest());
+        var response = await PostAsync("/api/investigate/multinode", ValidMultiRequest());
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var result = await response.Content.ReadFromJsonAsync<MultiNodeInvestigateResponse>(TestBase.JsonOpts);
@@ -100,7 +93,7 @@ public class InvestigateTests : IClassFixture<WebApplicationFactory<Program>>
     {
         var req = ValidMultiRequest();
         req.Nodes = req.Nodes.Take(1).ToList();
-        var response = await _client.PostAsJsonAsync("/api/investigate/multinode", req);
+        var response = await PostAsync("/api/investigate/multinode", req);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
@@ -115,15 +108,14 @@ public class InvestigateTests : IClassFixture<WebApplicationFactory<Program>>
             SensorValue = 8.0,
             Unit        = "mm/s"
         }).ToList();
-        var response = await _client.PostAsJsonAsync("/api/investigate/multinode", req);
+        var response = await PostAsync("/api/investigate/multinode", req);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
     public async Task MultiNode_ReturnsIncidentIdHeader()
     {
-        var response = await _client.PostAsJsonAsync("/api/investigate/multinode",
-            ValidMultiRequest());
+        var response = await PostAsync("/api/investigate/multinode", ValidMultiRequest());
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(response.Headers.Contains("X-Incident-Id"));
     }
