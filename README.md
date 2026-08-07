@@ -84,8 +84,8 @@ loop, multi-node synthesis, and incident chat against a real Claude response.
 Events copied from the Live Feed use the format:
 
 EVENT_TYPE NODE_ID SEVERITY
-<analysis text>
-→ <action text>
+[analysis text]
+-> [action text]
 
 
 Paste this into the Investigate tab and press **Parse Alarm** (Single Node) or
