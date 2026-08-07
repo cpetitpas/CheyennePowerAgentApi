@@ -42,6 +42,12 @@ From the repo root:
 dotnet test
 ```
 
+ To run non-Integration tests only:
+ 
+ ```bash
+ dotnet test --filter "Category!=Integration"
+ ```
+
 20 integration tests covering endpoint contracts, input validation, tool envelope shape, 
 per-tool payload values, and the degraded-tool escalation path.
 
